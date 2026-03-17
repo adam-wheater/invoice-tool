@@ -101,3 +101,49 @@ def ensure_config() -> dict:
     if changed:
         _save_config(config)
     return config
+
+
+# ── Invoice log ────────────────────────────────────────────────────────────────
+
+def _load_invoices() -> list:
+    if not INVOICES_FILE.exists():
+        return []
+    try:
+        data = json.loads(INVOICES_FILE.read_text())
+        return data if isinstance(data, list) else []
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def _save_invoices(records: list) -> None:
+    INVOICES_FILE.write_text(json.dumps(records, indent=2, default=str))
+
+
+def reserve_invoice_number() -> tuple:
+    """Reserve next invoice number; write pending record immediately. Returns (number, records)."""
+    records = _load_invoices()
+    number = next_invoice_number(records)
+    record = {
+        'number': number,
+        'status': 'pending',
+        'created_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+    }
+    records.append(record)
+    _save_invoices(records)
+    return number, records
+
+
+def cancel_invoice(records: list, number: str) -> None:
+    """Delete the pending record for a cancelled invoice."""
+    _save_invoices([r for r in records if r.get('number') != number])
+
+
+def finalise_invoice(records: list, number: str, data: dict) -> None:
+    """Update the pending record with full invoice data and mark as sent."""
+    for record in records:
+        if record.get('number') == number:
+            record.update(data)
+            record['status'] = 'sent'
+            record['sent_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            break
+    _save_invoices(records)
