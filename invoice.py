@@ -147,3 +147,142 @@ def finalise_invoice(records: list, number: str, data: dict) -> None:
             record['sent_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             break
     _save_invoices(records)
+
+
+# ── Prompts ────────────────────────────────────────────────────────────────────
+
+def prompt_client_details() -> dict:
+    print('\n── Client Details ──────────────────────────────────────')
+    name = ''
+    while not name:
+        name = input('  Client name: ').strip()
+        if not name:
+            print('  Client name is required.')
+
+    email = ''
+    while not email:
+        raw = input('  Client email: ').strip()
+        if validate_email(raw):
+            email = raw
+        else:
+            print('  Invalid email address. Please try again.')
+
+    print('  Client address (optional — press Enter on a blank line to finish):')
+    address_lines = []
+    while True:
+        line = input('    ')
+        if not line:
+            break
+        address_lines.append(line)
+
+    return {
+        'client_name': name,
+        'client_email': email,
+        'client_address': '\n'.join(address_lines),
+    }
+
+
+def prompt_line_items() -> list:
+    print('\n── Line Items ──────────────────────────────────────────')
+    print('  Enter items one at a time. Leave description blank to finish.')
+    items = []
+    while True:
+        desc = input(f'  Description [{len(items) + 1}] (blank to finish): ').strip()
+        if not desc:
+            if not items:
+                print('  At least one line item is required.')
+                continue
+            break
+
+        qty = None
+        while qty is None:
+            raw = input('    Quantity [1]: ').strip() or '1'
+            try:
+                q = float(raw)
+                if q <= 0:
+                    print('    Quantity must be greater than 0.')
+                else:
+                    qty = q
+            except ValueError:
+                print('    Please enter a valid number.')
+
+        price = None
+        while price is None:
+            raw = input('    Unit price (£): ').strip()
+            try:
+                p = float(raw)
+                if p < 0:
+                    print('    Price cannot be negative.')
+                else:
+                    price = p
+            except ValueError:
+                print('    Please enter a valid amount.')
+
+        items.append({'description': desc, 'qty': qty, 'unit_price': price})
+        print(f'    → Subtotal: £{qty * price:,.2f}')
+
+    return items
+
+
+def prompt_invoice_options() -> dict:
+    print('\n── Invoice Options ─────────────────────────────────────')
+
+    vat_raw = input('  Apply VAT at 20%? [y/N]: ').strip().lower()
+    apply_vat = vat_raw == 'y'
+
+    days = None
+    while days is None:
+        raw = input('  Payment due in how many days? [30]: ').strip() or '30'
+        try:
+            d = int(raw)
+            if d < 1:
+                print('  Due date must be at least 1 day from today.')
+            else:
+                days = d
+        except ValueError:
+            print('  Please enter a whole number.')
+
+    due_date = compute_due_date(days)
+    print(f'  Due by: {format_date_display(due_date)}')
+
+    notes_raw = input('  Notes (optional, max 500 chars): ').strip()
+    if len(notes_raw) > 500:
+        notes_raw = notes_raw[:500]
+        print('  Notes truncated to 500 characters.')
+
+    return {'apply_vat': apply_vat, 'due_date': due_date, 'notes': notes_raw}
+
+
+def print_summary(number: str, client: dict, items: list, options: dict, totals: dict) -> None:
+    issued = date.today()
+    print('\n' + '═' * 56)
+    print(f'  INVOICE {number}')
+    print('═' * 56)
+    print(f'  To:      {client["client_name"]} <{client["client_email"]}>')
+    if client['client_address']:
+        for line in client['client_address'].splitlines():
+            print(f'           {line}')
+    print(f'  Issued:  {format_date_display(issued)}')
+    print(f'  Due:     {format_date_display(options["due_date"])}')
+    print()
+    for item in items:
+        qty_str = str(int(item['qty'])) if item['qty'] == int(item['qty']) else str(item['qty'])
+        print(f'  {item["description"][:36]:36s}  x{qty_str:>4}  £{item["unit_price"]:>9,.2f}')
+    print('  ' + '─' * 54)
+    print(f'  {"Subtotal":49s} £{totals["subtotal"]:>9,.2f}')
+    if options['apply_vat']:
+        print(f'  {"VAT (20%)":49s} £{totals["vat"]:>9,.2f}')
+    print(f'  {"TOTAL DUE":49s} £{totals["total"]:>9,.2f}')
+    if options['notes']:
+        print(f'\n  Notes: {options["notes"]}')
+    print('═' * 56)
+
+
+def prompt_confirmation() -> bool:
+    while True:
+        raw = input('\n  Send this invoice? [y/N]: ').strip().lower()
+        if raw == 'y':
+            return True
+        if raw in ('n', ''):
+            return False
+        print('  Please type y or n.')
