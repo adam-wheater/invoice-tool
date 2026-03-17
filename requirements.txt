@@ -1,0 +1,3 @@
+weasyprint
+jinja2
+pytest
