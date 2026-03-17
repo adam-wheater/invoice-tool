@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 13px; color: #333; background: #fff;
+  }
+  .page { max-width: 740px; margin: 0 auto; padding: 40px; }
+
+  /* Header */
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #1a2e4a;
+  }
+  .business-name { font-size: 22px; font-weight: 700; color: #1a2e4a; }
+  .business-details { font-size: 11px; color: #666; margin-top: 6px; line-height: 1.6; }
+  .invoice-title { text-align: right; }
+  .invoice-title h1 {
+    font-size: 28px; font-weight: 300; color: #1a2e4a;
+    letter-spacing: 3px; text-transform: uppercase;
+  }
+  .invoice-number { font-size: 14px; font-weight: 600; color: #1a2e4a; margin-top: 4px; }
+
+  /* Meta row */
+  .meta { display: flex; justify-content: space-between; margin-bottom: 30px; }
+  .bill-to h3, .dates h3 {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: #999; margin-bottom: 8px;
+  }
+  .bill-to p { font-size: 12px; line-height: 1.7; }
+  .dates { text-align: right; }
+  .dates table { margin-left: auto; }
+  .dates td { padding: 2px 0 2px 20px; font-size: 12px; }
+  .dates td:first-child { color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .dates td:last-child { font-weight: 600; }
+
+  /* Line items table */
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  table.items thead th {
+    background: #1a2e4a; color: #fff; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 1px; padding: 10px 12px; text-align: left;
+  }
+  table.items thead th.right { text-align: right; }
+  table.items tbody td {
+    padding: 10px 12px; border-bottom: 1px solid #f0f0f0;
+    font-size: 12px; vertical-align: top;
+  }
+  table.items tbody td.right { text-align: right; }
+  table.items tbody tr:last-child td { border-bottom: none; }
+
+  /* Totals */
+  .totals { display: flex; justify-content: flex-end; margin-bottom: 30px; }
+  .totals-inner { width: 260px; }
+  .totals-inner table { width: 100%; }
+  .totals-inner td { padding: 4px 0; font-size: 12px; }
+  .totals-inner td:last-child { text-align: right; padding-left: 20px; }
+  .totals-inner .total-row td {
+    font-size: 15px; font-weight: 700; color: #1a2e4a;
+    border-top: 2px solid #1a2e4a; padding-top: 8px; margin-top: 4px;
+  }
+
+  /* Payment details */
+  .payment {
+    background: #f7f9fc; border-left: 4px solid #1a2e4a;
+    padding: 16px 20px; margin-bottom: 20px;
+  }
+  .payment h3 {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: #999; margin-bottom: 10px;
+  }
+  .payment table td { font-size: 12px; padding: 3px 0; }
+  .payment table td:first-child { color: #666; width: 130px; }
+  .payment table td:last-child { font-weight: 600; }
+
+  /* Notes */
+  .notes { margin-bottom: 20px; }
+  .notes h3 {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: #999; margin-bottom: 6px;
+  }
+  .notes p { font-size: 12px; line-height: 1.6; color: #555; }
+
+  /* Footer */
+  .footer {
+    text-align: center; font-size: 10px; color: #bbb;
+    padding-top: 20px; border-top: 1px solid #eee; margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div>
+      <div class="business-name">{{ business_name }}</div>
+      <div class="business-details">
+        {{ business_address | replace('\n', '<br>') | safe }}<br>
+        {{ business_email }}<br>
+        {{ business_phone }}
+      </div>
+    </div>
+    <div class="invoice-title">
+      <h1>Invoice</h1>
+      <div class="invoice-number">{{ number }}</div>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="bill-to">
+      <h3>Bill To</h3>
+      <p>
+        <strong>{{ client_name }}</strong><br>
+        {{ client_email }}
+        {% if client_address %}
+        <br>{{ client_address | replace('\n', '<br>') | safe }}
+        {% endif %}
+      </p>
+    </div>
+    <div class="dates">
+      <h3>Details</h3>
+      <table>
+        <tr><td>Invoice Date</td><td>{{ date_issued.strftime('%d %b %Y') }}</td></tr>
+        <tr><td>Due Date</td><td>{{ date_due.strftime('%d %b %Y') }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th class="right" style="width:70px">Qty</th>
+        <th class="right" style="width:110px">Unit Price</th>
+        <th class="right" style="width:110px">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in line_items %}
+      <tr>
+        <td>{{ item.description }}</td>
+        <td class="right">{{ item.qty | int if item.qty == (item.qty | int) else item.qty }}</td>
+        <td class="right">£{{ "%.2f" | format(item.unit_price) }}</td>
+        <td class="right">£{{ "%.2f" | format(item.qty * item.unit_price) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="totals-inner">
+      <table>
+        <tr><td>Subtotal</td><td>£{{ "%.2f" | format(totals.subtotal) }}</td></tr>
+        {% if vat_applied %}
+        <tr><td>VAT (20%)</td><td>£{{ "%.2f" | format(totals.vat) }}</td></tr>
+        {% endif %}
+        <tr class="total-row"><td>Total Due</td><td>£{{ "%.2f" | format(totals.total) }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="payment">
+    <h3>Payment Details</h3>
+    <table>
+      <tr><td>Payee</td><td>{{ bank_payee }}</td></tr>
+      <tr><td>Sort Code</td><td>{{ bank_sort_code }}</td></tr>
+      <tr><td>Account Number</td><td>{{ bank_account }}</td></tr>
+      <tr><td>Reference</td><td>{{ number }}</td></tr>
+    </table>
+  </div>
+
+  {% if notes %}
+  <div class="notes">
+    <h3>Notes</h3>
+    <p>{{ notes }}</p>
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    Thank you for your business &nbsp;&middot;&nbsp; {{ number }} &nbsp;&middot;&nbsp; {{ business_name }}
+  </div>
+
+</div>
+</body>
+</html>
