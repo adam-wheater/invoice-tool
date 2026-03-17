@@ -286,3 +286,19 @@ def prompt_confirmation() -> bool:
         if raw in ('n', ''):
             return False
         print('  Please type y or n.')
+
+
+# ── PDF generation ─────────────────────────────────────────────────────────────
+
+def render_html(template_data: dict) -> str:
+    """Render the invoice HTML template with the given data."""
+    template_src = TEMPLATE_FILE.read_text()
+    env = jinja2.Environment(autoescape=True)
+    template = env.from_string(template_src)
+    return template.render(**template_data)
+
+
+def generate_pdf(html: str, output_path: str) -> None:
+    """Convert HTML string to PDF and save to output_path."""
+    INVOICES_DIR.mkdir(exist_ok=True)
+    weasyprint.HTML(string=html).write_pdf(output_path)
