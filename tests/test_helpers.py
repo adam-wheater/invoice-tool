@@ -1,5 +1,6 @@
-import pytest
-from datetime import date
+from datetime import date, timedelta
+from pathlib import Path
+import tempfile
 from helpers import (
     sanitise_filename,
     next_invoice_number,
@@ -7,6 +8,8 @@ from helpers import (
     calculate_totals,
     format_plain_text_body,
     format_date_display,
+    compute_due_date,
+    pdf_output_path,
 )
 
 
@@ -29,6 +32,12 @@ def test_sanitise_filename_truncates_to_30():
     long_name = 'A Very Long Company Name That Exceeds Thirty Characters'
     result = sanitise_filename(long_name)
     assert len(result) <= 30
+
+def test_sanitise_filename_no_trailing_hyphen_after_truncation():
+    # 29 'a's + '-extra' → after truncation at 30 chars the last char would be '-'
+    name = 'a' * 29 + '-extra'
+    result = sanitise_filename(name)
+    assert not result.endswith('-')
 
 def test_sanitise_filename_consecutive_spaces():
     assert sanitise_filename('Foo  Bar') == 'foo-bar'
@@ -155,3 +164,39 @@ def test_format_plain_text_body_vat_note():
 def test_format_plain_text_body_no_vat_note():
     body = format_plain_text_body(_sample_data(vat=False))
     assert 'inc. VAT' not in body
+
+
+# ── compute_due_date ───────────────────────────────────────────────────────────
+
+def test_compute_due_date_30_days():
+    result = compute_due_date(30)
+    assert result == date.today() + timedelta(days=30)
+
+def test_compute_due_date_1_day():
+    result = compute_due_date(1)
+    assert result == date.today() + timedelta(days=1)
+
+
+# ── pdf_output_path ────────────────────────────────────────────────────────────
+
+def test_pdf_output_path_new_file():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        d = Path(tmpdir)
+        result = pdf_output_path(d, 'INV-001', 'Acme Ltd', date(2026, 3, 17))
+        assert result == str(d / 'INV-001-acme-ltd-2026-03-17.pdf')
+
+def test_pdf_output_path_avoids_overwrite():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        d = Path(tmpdir)
+        # Create the base file to simulate a collision
+        (d / 'INV-001-acme-ltd-2026-03-17.pdf').touch()
+        result = pdf_output_path(d, 'INV-001', 'Acme Ltd', date(2026, 3, 17))
+        assert result == str(d / 'INV-001-acme-ltd-2026-03-17-2.pdf')
+
+def test_pdf_output_path_avoids_multiple_overwrites():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        d = Path(tmpdir)
+        (d / 'INV-001-acme-ltd-2026-03-17.pdf').touch()
+        (d / 'INV-001-acme-ltd-2026-03-17-2.pdf').touch()
+        result = pdf_output_path(d, 'INV-001', 'Acme Ltd', date(2026, 3, 17))
+        assert result == str(d / 'INV-001-acme-ltd-2026-03-17-3.pdf')

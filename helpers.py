@@ -11,8 +11,7 @@ def sanitise_filename(name: str) -> str:
     result = re.sub(r'-+', '-', result)
     result = re.sub(r'[^a-z0-9-]', '', result)
     result = re.sub(r'-+', '-', result)
-    result = result.strip('-')
-    return result[:30]
+    return result[:30].strip('-')
 
 
 def next_invoice_number(records: list) -> str:
