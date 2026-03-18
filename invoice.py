@@ -302,3 +302,120 @@ def generate_pdf(html: str, output_path: str) -> None:
     """Convert HTML string to PDF and save to output_path."""
     INVOICES_DIR.mkdir(exist_ok=True)
     weasyprint.HTML(string=html).write_pdf(output_path)
+
+
+# ── Email ──────────────────────────────────────────────────────────────────────
+
+def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_path: str) -> None:
+    """Send invoice email with HTML body and PDF attachment via SMTP SSL."""
+    msg = MIMEMultipart('mixed')
+    msg['Subject'] = f"Invoice {invoice_data['number']} from {config['business_name']}"
+    msg['From'] = config['smtp_from']
+    msg['To'] = invoice_data['client_email']
+
+    # Plain text + HTML alternative
+    alt = MIMEMultipart('alternative')
+    alt.attach(MIMEText(invoice_data['plain_text_body'], 'plain', 'utf-8'))
+    alt.attach(MIMEText(html_body, 'html', 'utf-8'))
+    msg.attach(alt)
+
+    # PDF attachment
+    with open(pdf_path, 'rb') as f:
+        part = MIMEBase('application', 'pdf')
+        part.set_payload(f.read())
+    encoders.encode_base64(part)
+    filename = Path(pdf_path).name
+    part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
+    msg.attach(part)
+
+    with smtplib.SMTP_SSL(config['smtp_host'], int(config['smtp_port'])) as server:
+        server.login(config['smtp_user'], config['smtp_password'])
+        server.sendmail(config['smtp_from'], [invoice_data['client_email']], msg.as_string())
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def main():
+    print('\n╔══════════════════════════════════════════════════════╗')
+    print('║               Invoice Generator                     ║')
+    print('╚══════════════════════════════════════════════════════╝\n')
+
+    # 1. Config
+    config = ensure_config()
+
+    # 2. Reserve invoice number (written to log immediately)
+    number, records = reserve_invoice_number()
+    print(f'\nInvoice number: {number}')
+
+    # 3. Collect details
+    client = prompt_client_details()
+    items = prompt_line_items()
+    options = prompt_invoice_options()
+    totals = calculate_totals(items, options['apply_vat'])
+
+    # 4. Show summary and confirm
+    print_summary(number, client, items, options, totals)
+    if not prompt_confirmation():
+        cancel_invoice(records, number)
+        print('\nCancelled — no invoice sent.')
+        sys.exit(0)
+
+    # 5. Assemble invoice data
+    issued = date.today()
+    invoice_data = {
+        'number': number,
+        'business_name': config['business_name'],
+        'business_address': config.get('business_address', ''),
+        'business_email': config.get('business_email', ''),
+        'business_phone': config.get('business_phone', ''),
+        'bank_payee': config['bank_payee'],
+        'bank_sort_code': config['bank_sort_code'],
+        'bank_account': config['bank_account'],
+        'client_name': client['client_name'],
+        'client_email': client['client_email'],
+        'client_address': client['client_address'],
+        'date_issued': issued,
+        'date_due': options['due_date'],
+        'line_items': items,
+        'totals': totals,
+        'vat_applied': options['apply_vat'],
+        'notes': options['notes'],
+    }
+    invoice_data['plain_text_body'] = format_plain_text_body(invoice_data)
+
+    # 6. Generate PDF
+    print('\nGenerating PDF...')
+    html = render_html(invoice_data)
+    out_path = pdf_output_path(INVOICES_DIR, number, client['client_name'], issued)
+    generate_pdf(html, out_path)
+    print(f'  Saved: {out_path}')
+
+    # 7. Send email
+    print('Sending email...')
+    try:
+        send_invoice_email(config, invoice_data, html, out_path)
+    except Exception as e:
+        print(f'\n  ERROR sending email: {e}')
+        print(f'  PDF saved at: {out_path}')
+        print('  Invoice log record left as pending — re-run or send manually.')
+        sys.exit(1)
+
+    # 8. Finalise log
+    log_data = {
+        'client_name': client['client_name'],
+        'client_email': client['client_email'],
+        'date_issued': issued.isoformat(),
+        'date_due': options['due_date'].isoformat(),
+        'total_gbp': totals['total'],
+        'vat_applied': options['apply_vat'],
+        'line_items': items,
+        'pdf_path': str(Path(out_path).relative_to(BASE_DIR)),
+    }
+    finalise_invoice(records, number, log_data)
+
+    print(f'\n  Invoice {number} sent to {client["client_email"]}')
+    print(f'  PDF: {out_path}\n')
+
+
+if __name__ == '__main__':
+    main()
