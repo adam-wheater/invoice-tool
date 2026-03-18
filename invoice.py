@@ -394,8 +394,8 @@ def resend_flow(config: dict) -> None:
     # Select invoice
     record = None
     while record is None:
-        raw = input('\n  Enter # or invoice number (e.g. INV-001): ').strip()
-        record = _select_invoice_from_list(sent, raw)
+        sel = input('\n  Enter # or invoice number (e.g. INV-001): ').strip()
+        record = _select_invoice_from_list(sent, sel)
         if record is None:
             print('  Not found. Enter a list number or invoice number.')
 
@@ -403,14 +403,11 @@ def resend_flow(config: dict) -> None:
     original_email = record['client_email']
     recipient = original_email
     raw_email = input(f'  Send to [{original_email}]: ').strip()
+    while raw_email and not validate_email(raw_email):
+        print('  Invalid email address.')
+        raw_email = input(f'  Send to [{original_email}]: ').strip()
     if raw_email:
-        while not validate_email(raw_email):
-            print('  Invalid email address.')
-            raw_email = input(f'  Send to [{original_email}]: ').strip()
-            if not raw_email:
-                break
-        if raw_email:
-            recipient = raw_email
+        recipient = raw_email
 
     # Check PDF exists
     pdf_path = BASE_DIR / record['pdf_path']
@@ -422,10 +419,10 @@ def resend_flow(config: dict) -> None:
     # Confirm before sending
     total_str = f'\u00a3{record["total_gbp"]:,.2f}'
     while True:
-        raw = input(f'\n  Resend {record["number"]} ({total_str}) to {recipient}? [y/N]: ').strip().lower()
-        if raw == 'y':
+        confirm = input(f'\n  Resend {record["number"]} ({total_str}) to {recipient}? [y/N]: ').strip().lower()
+        if confirm == 'y':
             break
-        if raw in ('n', ''):
+        if confirm in ('n', ''):
             print('  Cancelled.')
             sys.exit(0)
 
@@ -433,11 +430,12 @@ def resend_flow(config: dict) -> None:
     invoice_data = build_invoice_data_from_record(record, config)
     html = render_html(invoice_data)
 
-    print('Sending email...')
+    print('  Sending email...')
     try:
         send_invoice_email(config, invoice_data, html, str(pdf_path), recipient=recipient)
     except Exception as e:
         print(f'\n  ERROR sending email: {e}')
+        print(f'  PDF is at: {pdf_path}')
         sys.exit(1)
 
     print(f'\n  {record["number"]} resent to {recipient}\n')
