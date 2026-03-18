@@ -73,3 +73,65 @@ def test_ensure_config_smtp_from_defaults_to_env_user_when_blank(tmp_path, monke
         config = invoice.ensure_config()
 
     assert config['smtp_from'] == 'env@example.com'
+
+
+# ── send_invoice_email: recipient override ─────────────────────────────────────
+
+def _make_invoice_data():
+    return {
+        'number': 'INV-001',
+        'plain_text_body': 'test body',
+        'client_email': 'original@example.com',
+    }
+
+def _make_config():
+    return {
+        'business_name': 'Test Co',
+        'smtp_from': 'sender@example.com',
+        'smtp_host': 'smtp.hostinger.com',
+        'smtp_port': 587,
+        'smtp_user': 'u',
+        'smtp_password': 'p',
+    }
+
+
+def test_send_invoice_email_defaults_to_client_email(tmp_path):
+    pdf = tmp_path / 'test.pdf'
+    pdf.write_bytes(b'%PDF')
+    with mock.patch('invoice.smtplib.SMTP') as mock_smtp_cls:
+        mock_server = mock_smtp_cls.return_value.__enter__.return_value
+        invoice.send_invoice_email(_make_config(), _make_invoice_data(), '<html/>', str(pdf))
+        _, sendmail_args, _ = mock_server.sendmail.mock_calls[0]
+        assert sendmail_args[1] == ['original@example.com']
+
+
+def test_send_invoice_email_uses_recipient_override(tmp_path):
+    pdf = tmp_path / 'test.pdf'
+    pdf.write_bytes(b'%PDF')
+    with mock.patch('invoice.smtplib.SMTP') as mock_smtp_cls:
+        mock_server = mock_smtp_cls.return_value.__enter__.return_value
+        invoice.send_invoice_email(
+            _make_config(), _make_invoice_data(), '<html/>', str(pdf),
+            recipient='override@example.com'
+        )
+        _, sendmail_args, _ = mock_server.sendmail.mock_calls[0]
+        assert sendmail_args[1] == ['override@example.com']
+
+
+def test_send_invoice_email_to_header_uses_recipient(tmp_path):
+    """msg['To'] header must also use the override, not the original client_email."""
+    pdf = tmp_path / 'test.pdf'
+    pdf.write_bytes(b'%PDF')
+    captured = {}
+    def fake_sendmail(from_addr, to_addrs, msg_str):
+        import email
+        msg = email.message_from_string(msg_str)
+        captured['to_header'] = msg['To']
+    with mock.patch('invoice.smtplib.SMTP') as mock_smtp_cls:
+        mock_server = mock_smtp_cls.return_value.__enter__.return_value
+        mock_server.sendmail.side_effect = fake_sendmail
+        invoice.send_invoice_email(
+            _make_config(), _make_invoice_data(), '<html/>', str(pdf),
+            recipient='override@example.com'
+        )
+    assert captured['to_header'] == 'override@example.com'

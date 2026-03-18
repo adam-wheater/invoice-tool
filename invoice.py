@@ -315,12 +315,13 @@ def generate_pdf(html: str, output_path: str) -> None:
 
 # ── Email ──────────────────────────────────────────────────────────────────────
 
-def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_path: str) -> None:
+def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_path: str, recipient: str = None) -> None:
     """Send invoice email with HTML body and PDF attachment via SMTP SSL."""
+    to_addr = recipient if recipient else invoice_data['client_email']
     msg = MIMEMultipart('mixed')
     msg['Subject'] = f"Invoice {invoice_data['number']} from {config['business_name']}"
     msg['From'] = config['smtp_from']
-    msg['To'] = invoice_data['client_email']
+    msg['To'] = to_addr
 
     # Plain text + HTML alternative
     alt = MIMEMultipart('alternative')
@@ -346,7 +347,7 @@ def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_pat
     with conn as server:
         server.login(config['smtp_user'], config['smtp_password'])
         _, envelope_from = parseaddr(config['smtp_from'])
-        server.sendmail(envelope_from, [invoice_data['client_email']], msg.as_string())
+        server.sendmail(envelope_from, [to_addr], msg.as_string())
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -425,6 +426,7 @@ def main():
         'total_gbp': totals['total'],
         'vat_applied': options['apply_vat'],
         'line_items': items,
+        'notes': options['notes'],
         'pdf_path': str(Path(out_path).relative_to(BASE_DIR)),
     }
     finalise_invoice(records, number, log_data)
