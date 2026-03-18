@@ -17,6 +17,7 @@ import os
 import smtplib
 import sys
 from datetime import date, datetime, timezone
+from typing import Optional
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -315,9 +316,14 @@ def generate_pdf(html: str, output_path: str) -> None:
 
 # ── Email ──────────────────────────────────────────────────────────────────────
 
-def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_path: str, recipient: str = None) -> None:
-    """Send invoice email with HTML body and PDF attachment via SMTP SSL."""
-    to_addr = recipient if recipient else invoice_data['client_email']
+def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_path: str, recipient: Optional[str] = None) -> None:
+    """Send invoice email with HTML body and PDF attachment via SMTP SSL.
+
+    Args:
+        recipient: Override delivery address. If None, uses invoice_data['client_email'].
+                   The 'Billed to:' line in the email body always uses the original address.
+    """
+    to_addr = recipient if recipient is not None else invoice_data['client_email']
     msg = MIMEMultipart('mixed')
     msg['Subject'] = f"Invoice {invoice_data['number']} from {config['business_name']}"
     msg['From'] = config['smtp_from']

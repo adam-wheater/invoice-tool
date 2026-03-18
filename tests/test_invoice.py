@@ -1,4 +1,5 @@
 """Tests for invoice.py functions (config management, env var injection)."""
+import email
 import json
 import os
 import tempfile
@@ -124,7 +125,6 @@ def test_send_invoice_email_to_header_uses_recipient(tmp_path):
     pdf.write_bytes(b'%PDF')
     captured = {}
     def fake_sendmail(from_addr, to_addrs, msg_str):
-        import email
         msg = email.message_from_string(msg_str)
         captured['to_header'] = msg['To']
     with mock.patch('invoice.smtplib.SMTP') as mock_smtp_cls:
