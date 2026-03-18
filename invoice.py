@@ -13,6 +13,7 @@ USAGE:
 """
 
 import json
+import os
 import smtplib
 import sys
 from datetime import date, datetime, timezone
@@ -87,8 +88,15 @@ def _save_config(config: dict) -> None:
 
 
 def ensure_config() -> dict:
-    """Load config; prompt for any missing or blank required fields."""
+    """Load config; inject env vars, then prompt for any remaining blank fields."""
     config = {**CONFIG_DEFAULTS, **_load_config_file()}
+    # Override with env vars if set (credentials never need to touch disk)
+    if os.environ.get('INVOICE_SMTP_USER'):
+        config['smtp_user'] = os.environ['INVOICE_SMTP_USER']
+        if not config.get('smtp_from'):
+            config['smtp_from'] = os.environ['INVOICE_SMTP_USER']
+    if os.environ.get('INVOICE_SMTP_PASSWORD'):
+        config['smtp_password'] = os.environ['INVOICE_SMTP_PASSWORD']
     changed = False
     for field in REQUIRED_STRING_FIELDS:
         if not str(config.get(field, '')).strip():
