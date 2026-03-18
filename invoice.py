@@ -361,6 +361,88 @@ def prompt_confirmation() -> bool:
         print('  Please type y or n.')
 
 
+def prompt_mode() -> str:
+    """Prompt the user to choose between new invoice and resend. Returns 'new' or 'resend'."""
+    print('  1) New invoice')
+    print('  2) Resend existing invoice\n')
+    while True:
+        raw = input('  Choice [1]: ').strip()
+        if raw in ('', '1'):
+            return 'new'
+        if raw == '2':
+            return 'resend'
+        print('  Please enter 1 or 2.')
+
+
+def resend_flow(config: dict) -> None:
+    """Handle the resend-existing-invoice flow."""
+    all_records = _load_invoices()
+    sent = [r for r in all_records if r.get('status') == 'sent']
+
+    if not sent:
+        print('  No sent invoices found.')
+        sys.exit(0)
+
+    # Show list
+    print('\n  Sent invoices:')
+    print(f'   {"#":<4} {"Number":<10} {"Client":<22} {"Total":>10}  {"Date":<12}')
+    print('  ' + '─' * 57)
+    for i, r in enumerate(sent, 1):
+        total_str = f'\u00a3{r["total_gbp"]:,.2f}'
+        print(f'   {i:<4} {r["number"]:<10} {r["client_name"][:21]:<22} {total_str:>10}  {r["date_issued"]:<12}')
+
+    # Select invoice
+    record = None
+    while record is None:
+        raw = input('\n  Enter # or invoice number (e.g. INV-001): ').strip()
+        record = _select_invoice_from_list(sent, raw)
+        if record is None:
+            print('  Not found. Enter a list number or invoice number.')
+
+    # Confirm/change recipient
+    original_email = record['client_email']
+    recipient = original_email
+    raw_email = input(f'  Send to [{original_email}]: ').strip()
+    if raw_email:
+        while not validate_email(raw_email):
+            print('  Invalid email address.')
+            raw_email = input(f'  Send to [{original_email}]: ').strip()
+            if not raw_email:
+                break
+        if raw_email:
+            recipient = raw_email
+
+    # Check PDF exists
+    pdf_path = BASE_DIR / record['pdf_path']
+    if not pdf_path.exists():
+        print(f'\n  ERROR: PDF not found at {record["pdf_path"]}')
+        print('  The file may have been moved or deleted.')
+        sys.exit(1)
+
+    # Confirm before sending
+    total_str = f'\u00a3{record["total_gbp"]:,.2f}'
+    while True:
+        raw = input(f'\n  Resend {record["number"]} ({total_str}) to {recipient}? [y/N]: ').strip().lower()
+        if raw == 'y':
+            break
+        if raw in ('n', ''):
+            print('  Cancelled.')
+            sys.exit(0)
+
+    # Build, render, send
+    invoice_data = build_invoice_data_from_record(record, config)
+    html = render_html(invoice_data)
+
+    print('Sending email...')
+    try:
+        send_invoice_email(config, invoice_data, html, str(pdf_path), recipient=recipient)
+    except Exception as e:
+        print(f'\n  ERROR sending email: {e}')
+        sys.exit(1)
+
+    print(f'\n  {record["number"]} resent to {recipient}\n')
+
+
 # ── PDF generation ─────────────────────────────────────────────────────────────
 
 def render_html(template_data: dict) -> str:
@@ -429,24 +511,30 @@ def main():
     # 1. Config
     config = ensure_config()
 
-    # 2. Reserve invoice number (written to log immediately)
+    # 2. Mode selection
+    mode = prompt_mode()
+    if mode == 'resend':
+        resend_flow(config)
+        return
+
+    # 3. Reserve invoice number (written to log immediately)
     number, records = reserve_invoice_number()
     print(f'\nInvoice number: {number}')
 
-    # 3. Collect details
+    # 4. Collect details
     client = prompt_client_details()
     items = prompt_line_items()
     options = prompt_invoice_options()
     totals = calculate_totals(items, options['apply_vat'])
 
-    # 4. Show summary and confirm
+    # 5. Show summary and confirm
     print_summary(number, client, items, options, totals)
     if not prompt_confirmation():
         cancel_invoice(records, number)
         print('\nCancelled — no invoice sent.')
         sys.exit(0)
 
-    # 5. Assemble invoice data
+    # 6. Assemble invoice data
     issued = date.today()
     invoice_data = {
         'number': number,
@@ -469,14 +557,14 @@ def main():
     }
     invoice_data['plain_text_body'] = format_plain_text_body(invoice_data)
 
-    # 6. Generate PDF
+    # 7. Generate PDF
     print('\nGenerating PDF...')
     html = render_html(invoice_data)
     out_path = pdf_output_path(INVOICES_DIR, number, client['client_name'], issued)
     generate_pdf(html, out_path)
     print(f'  Saved: {out_path}')
 
-    # 7. Send email
+    # 8. Send email
     print('Sending email...')
     try:
         send_invoice_email(config, invoice_data, html, out_path)
@@ -486,7 +574,7 @@ def main():
         print('  Invoice log record left as pending — re-run or send manually.')
         sys.exit(1)
 
-    # 8. Finalise log
+    # 9. Finalise log
     log_data = {
         'client_name': client['client_name'],
         'client_email': client['client_email'],
