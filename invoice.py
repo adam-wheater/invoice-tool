@@ -159,6 +159,42 @@ def finalise_invoice(records: list, number: str, data: dict) -> None:
     _save_invoices(records)
 
 
+def build_invoice_data_from_record(record: dict, config: dict) -> dict:
+    """Reconstruct a full invoice_data dict from a log record and live config.
+
+    Args:
+        record: A sent-invoice record from invoices.json.
+        config: The live config dict (provides business/bank fields).
+
+    Returns:
+        A complete invoice_data dict suitable for render_html() and send_invoice_email().
+        client_address is always '' (not stored in log).
+    """
+    line_items = record['line_items']
+    vat_applied = record['vat_applied']
+    invoice_data = {
+        'number': record['number'],
+        'client_name': record['client_name'],
+        'client_email': record['client_email'],
+        'client_address': '',
+        'date_issued': date.fromisoformat(record['date_issued']),
+        'date_due': date.fromisoformat(record['date_due']),
+        'line_items': line_items,
+        'vat_applied': vat_applied,
+        'totals': calculate_totals(line_items, vat_applied),
+        'notes': record.get('notes', ''),
+        'business_name': config['business_name'],
+        'business_address': config.get('business_address', ''),
+        'business_email': config.get('business_email', ''),
+        'business_phone': config.get('business_phone', ''),
+        'bank_payee': config['bank_payee'],
+        'bank_sort_code': config['bank_sort_code'],
+        'bank_account': config['bank_account'],
+    }
+    invoice_data['plain_text_body'] = format_plain_text_body(invoice_data)
+    return invoice_data
+
+
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
 def prompt_client_details() -> dict:

@@ -135,3 +135,80 @@ def test_send_invoice_email_to_header_uses_recipient(tmp_path):
             recipient='override@example.com'
         )
     assert captured['to_header'] == 'override@example.com'
+
+
+from datetime import date as date_type
+
+
+# ── build_invoice_data_from_record ─────────────────────────────────────────────
+
+def _sample_record(**overrides):
+    base = {
+        'number': 'INV-001',
+        'status': 'sent',
+        'client_name': 'Acme Ltd',
+        'client_email': 'billing@acme.com',
+        'date_issued': '2026-03-17',
+        'date_due': '2026-04-16',
+        'line_items': [{'description': 'Web dev', 'qty': 1, 'unit_price': 1000.0}],
+        'vat_applied': True,
+        'total_gbp': 1200.0,
+        'notes': 'Pay promptly',
+        'pdf_path': 'invoices/INV-001-acme-ltd-2026-03-17.pdf',
+        'sent_at': '2026-03-17T14:00:00Z',
+    }
+    base.update(overrides)
+    return base
+
+def _sample_config():
+    return {
+        'business_name': 'DigiDuo', 'business_address': '73 Hunderton Road',
+        'business_email': 'adam@digiduo.co.uk', 'business_phone': '07542581355',
+        'bank_payee': 'Adam Wheater', 'bank_sort_code': '23-01-20',
+        'bank_account': '66530274',
+    }
+
+
+def test_build_invoice_data_from_record_dates_are_date_objects():
+    data = invoice.build_invoice_data_from_record(_sample_record(), _sample_config())
+    assert isinstance(data['date_issued'], date_type)
+    assert isinstance(data['date_due'], date_type)
+    assert data['date_issued'] == date_type(2026, 3, 17)
+    assert data['date_due'] == date_type(2026, 4, 16)
+
+
+def test_build_invoice_data_from_record_totals_recomputed():
+    data = invoice.build_invoice_data_from_record(_sample_record(), _sample_config())
+    assert data['totals']['subtotal'] == 1000.0
+    assert data['totals']['vat'] == 200.0
+    assert data['totals']['total'] == 1200.0
+
+
+def test_build_invoice_data_from_record_client_address_is_empty_string():
+    data = invoice.build_invoice_data_from_record(_sample_record(), _sample_config())
+    assert data['client_address'] == ''
+
+
+def test_build_invoice_data_from_record_notes_from_record():
+    data = invoice.build_invoice_data_from_record(_sample_record(), _sample_config())
+    assert data['notes'] == 'Pay promptly'
+
+
+def test_build_invoice_data_from_record_notes_defaults_to_empty():
+    record = _sample_record()
+    del record['notes']
+    data = invoice.build_invoice_data_from_record(record, _sample_config())
+    assert data['notes'] == ''
+
+
+def test_build_invoice_data_from_record_business_fields_from_config():
+    data = invoice.build_invoice_data_from_record(_sample_record(), _sample_config())
+    assert data['business_name'] == 'DigiDuo'
+    assert data['bank_payee'] == 'Adam Wheater'
+
+
+def test_build_invoice_data_from_record_plain_text_body_present():
+    data = invoice.build_invoice_data_from_record(_sample_record(), _sample_config())
+    assert 'plain_text_body' in data
+    assert 'INV-001' in data['plain_text_body']
+    assert 'Acme Ltd' in data['plain_text_body']
