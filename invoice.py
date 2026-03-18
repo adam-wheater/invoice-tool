@@ -21,6 +21,7 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import parseaddr
 from pathlib import Path
 
 import jinja2
@@ -338,7 +339,8 @@ def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_pat
 
     with smtplib.SMTP_SSL(config['smtp_host'], int(config['smtp_port'])) as server:
         server.login(config['smtp_user'], config['smtp_password'])
-        server.sendmail(config['smtp_from'], [invoice_data['client_email']], msg.as_string())
+        _, envelope_from = parseaddr(config['smtp_from'])
+        server.sendmail(envelope_from, [invoice_data['client_email']], msg.as_string())
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
