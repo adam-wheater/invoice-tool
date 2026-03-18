@@ -159,6 +159,33 @@ def finalise_invoice(records: list, number: str, data: dict) -> None:
     _save_invoices(records)
 
 
+def _select_invoice_from_list(sent_records: list, raw: str) -> Optional[dict]:
+    """Return the matching record given a 1-based list index or invoice number string.
+
+    Args:
+        sent_records: List of sent invoice records.
+        raw: User input — either a 1-based integer index or an invoice number (case-insensitive).
+
+    Returns:
+        The matching record dict, or None if not found.
+    """
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        idx = int(raw) - 1
+        if 0 <= idx < len(sent_records):
+            return sent_records[idx]
+        return None
+    except ValueError:
+        pass
+    upper = raw.upper()
+    for record in sent_records:
+        if record.get('number', '').upper() == upper:
+            return record
+    return None
+
+
 def build_invoice_data_from_record(record: dict, config: dict) -> dict:
     """Reconstruct a full invoice_data dict from a log record and live config.
 

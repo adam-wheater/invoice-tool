@@ -212,3 +212,34 @@ def test_build_invoice_data_from_record_plain_text_body_present():
     assert 'plain_text_body' in data
     assert 'INV-001' in data['plain_text_body']
     assert 'Acme Ltd' in data['plain_text_body']
+
+
+# ── _select_invoice_from_list ──────────────────────────────────────────────────
+
+def _sent_records():
+    return [
+        {'number': 'INV-001', 'client_name': 'Acme Ltd'},
+        {'number': 'INV-002', 'client_name': 'Bob Smith'},
+        {'number': 'INV-003', 'client_name': 'Charlie Co'},
+    ]
+
+
+def test_select_by_list_number():
+    assert invoice._select_invoice_from_list(_sent_records(), '1')['number'] == 'INV-001'
+    assert invoice._select_invoice_from_list(_sent_records(), '2')['number'] == 'INV-002'
+    assert invoice._select_invoice_from_list(_sent_records(), '3')['number'] == 'INV-003'
+
+
+def test_select_by_invoice_number():
+    assert invoice._select_invoice_from_list(_sent_records(), 'INV-002')['number'] == 'INV-002'
+
+
+def test_select_by_invoice_number_case_insensitive():
+    assert invoice._select_invoice_from_list(_sent_records(), 'inv-001')['number'] == 'INV-001'
+
+
+def test_select_invalid_returns_none():
+    assert invoice._select_invoice_from_list(_sent_records(), 'xyz') is None
+    assert invoice._select_invoice_from_list(_sent_records(), '0') is None
+    assert invoice._select_invoice_from_list(_sent_records(), '99') is None
+    assert invoice._select_invoice_from_list(_sent_records(), '') is None
