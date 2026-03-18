@@ -49,7 +49,7 @@ CONFIG_DEFAULTS = {
     'bank_sort_code': '23-01-20',
     'bank_account': '66530274',
     'smtp_host': 'smtp.hostinger.com',
-    'smtp_port': 465,
+    'smtp_port': 587,
 }
 
 REQUIRED_STRING_FIELDS = [
@@ -337,7 +337,13 @@ def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_pat
     part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
     msg.attach(part)
 
-    with smtplib.SMTP_SSL(config['smtp_host'], int(config['smtp_port'])) as server:
+    port = int(config['smtp_port'])
+    if port == 465:
+        conn = smtplib.SMTP_SSL(config['smtp_host'], port)
+    else:
+        conn = smtplib.SMTP(config['smtp_host'], port)
+        conn.starttls()
+    with conn as server:
         server.login(config['smtp_user'], config['smtp_password'])
         _, envelope_from = parseaddr(config['smtp_from'])
         server.sendmail(envelope_from, [invoice_data['client_email']], msg.as_string())
