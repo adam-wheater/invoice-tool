@@ -57,7 +57,7 @@ def compute_due_date(days: int) -> date:
 
 def format_date_display(d: date) -> str:
     """Format a date as '16 April 2026'."""
-    return d.strftime('%-d %B %Y')
+    return f"{d.day} {d.strftime('%B %Y')}"
 
 
 def format_plain_text_body(data: dict) -> str:
