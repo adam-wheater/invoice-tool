@@ -1,6 +1,16 @@
+# Credentials and personal data — never commit
+config.json
+invoices.json
+
+# Generated PDFs
+invoices/
+
+# Python
 venv/
 .pytest_cache/
 __pycache__/
 *.pyc
-invoices/*.pdf
-config.json
+
+# PyInstaller build output (NOT *.spec — invoice.spec must be committed for CI)
+build/
+dist/
