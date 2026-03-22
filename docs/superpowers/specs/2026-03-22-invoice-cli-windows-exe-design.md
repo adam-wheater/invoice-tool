@@ -15,9 +15,9 @@ Package the existing Python invoice CLI tool as a standalone Windows `.exe` that
 
 WeasyPrint requires GTK system libraries (libcairo, libpango) which cannot be bundled cleanly by PyInstaller on Windows. Replace with `xhtml2pdf`, which is pure Python (uses reportlab under the hood) and bundles cleanly into a single exe.
 
-**`requirements.txt`** — remove `weasyprint`, add `xhtml2pdf`.
+**`requirements.txt`** — remove `weasyprint`, add `xhtml2pdf`. Move `pytest` to a separate `requirements-dev.txt` so it is not bundled into the exe by PyInstaller.
 
-**`invoice.py` — `generate_pdf()`** — swap WeasyPrint call for xhtml2pdf:
+**`invoice.py` — `generate_pdf()`** — swap WeasyPrint call for xhtml2pdf. The `pisa.CreatePDF` return value must be checked — xhtml2pdf does not raise on failure, it returns a status object where `.err` is truthy on error:
 
 ```python
 from xhtml2pdf import pisa
@@ -25,8 +25,12 @@ from xhtml2pdf import pisa
 def generate_pdf(html: str, output_path: str) -> None:
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'wb') as f:
-        pisa.CreatePDF(html, dest=f)
+        result = pisa.CreatePDF(html, dest=f)
+    if result.err:
+        raise RuntimeError(f'PDF generation failed (xhtml2pdf error code {result.err})')
 ```
+
+**`| safe` filter audit**: The Jinja2 environment uses `autoescape=True`. Two template locations use `| safe` to inject `<br>` for newlines in address fields — this is intentional and controlled (input comes from the user's own config/prompts, not external data). These callsites are reviewed as part of the template rewrite and remain safe.
 
 ### 1b. Fix Windows strftime incompatibility
 
@@ -45,16 +49,18 @@ def format_date_display(d: date) -> str:
 
 ## Section 2: Security / .gitignore
 
-**Files never committed:**
+**Files never committed** (update existing `.gitignore` — `invoices.json` is currently missing from it):
 
 | File/Dir | Reason |
 |---|---|
 | `config.json` | SMTP credentials, bank account, personal details |
-| `invoices.json` | Client data |
+| `invoices.json` | Client data — currently missing from `.gitignore`, must be added |
 | `invoices/` | Generated PDFs |
 | `venv/` | Local Python environment |
 | `__pycache__/` | Bytecode cache |
 | `build/`, `dist/`, `*.spec` | PyInstaller artefacts |
+
+**`run.sh`** is committed — it is a useful Linux/macOS dev launcher. The stale GTK/system-library setup comment at the top of `invoice.py` is removed as part of the code changes (those dependencies are gone).
 
 **`config.example.json`** committed with all fields present but values empty — serves as documentation for what config looks like without exposing real credentials.
 
@@ -70,10 +76,16 @@ A `invoice.spec` file bundles:
 - `--onefile` mode: single self-extracting `invoice.exe`
 - Console application (CLI tool, no GUI window)
 
-Template path resolved at runtime via:
+Two separate path roots are required post-migration, replacing the single `BASE_DIR` in the current code:
+
+- **`BUNDLE_DIR`** — where bundled data files (e.g. `template.html`) live at runtime. In a frozen exe PyInstaller extracts data files to a temp directory pointed to by `sys._MEIPASS`, not next to the exe. In development it is `Path(__file__).parent`.
+
 ```python
-BASE_DIR = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
+BUNDLE_DIR = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).parent
+TEMPLATE_FILE = BUNDLE_DIR / 'template.html'
 ```
+
+- **`APP_DATA_DIR`** — where config and the invoice log live (see Section 4).
 
 ### 3b. GitHub Actions workflow
 
@@ -101,7 +113,7 @@ On Windows, config is stored at `%APPDATA%\invoice-tool\config.json` (typically 
 - Persists across exe updates/moves
 - Is the standard Windows convention for per-user app data
 
-**`invoice.py` — `BASE_DIR` and `CONFIG_FILE`:**
+**`invoice.py` — config path constants:**
 ```python
 import sys, os
 
@@ -115,12 +127,27 @@ CONFIG_FILE = APP_DATA_DIR / 'config.json'
 INVOICES_FILE = APP_DATA_DIR / 'invoices.json'
 ```
 
+`APP_DATA_DIR` must be created before any file writes (first run). This is done at startup: `APP_DATA_DIR.mkdir(parents=True, exist_ok=True)`.
+
 ### 4b. Invoices (PDFs) location
 
 PDFs and the invoice log are saved to `Documents\Invoices\` (`~/Documents/Invoices/` cross-platform). This is easy for users to find and writable without admin rights.
 
 ```python
 INVOICES_DIR = Path.home() / 'Documents' / 'Invoices'
+```
+
+**Critical: PDF paths stored as absolute strings.** The current code stores `pdf_path` as a path relative to `BASE_DIR`. After the migration, `BASE_DIR` no longer exists as a single concept, so relative paths would be unresolvable. The invoice log must store the **absolute** PDF path:
+
+```python
+# In finalise_invoice log_data:
+'pdf_path': str(Path(out_path).resolve()),
+```
+
+And `resend_flow()` must look up the PDF directly by absolute path — no joining with any base directory:
+
+```python
+pdf_path = Path(record['pdf_path'])  # already absolute
 ```
 
 ### 4c. First-run flow
@@ -148,13 +175,19 @@ The README covers:
 
 ## Implementation Order
 
-1. Update `requirements.txt` (remove weasyprint, add xhtml2pdf)
-2. Fix `helpers.py` strftime
-3. Update `invoice.py` — `generate_pdf()`, `_app_data_dir()`, paths
-4. Update `BASE_DIR` resolution for frozen exe
-5. Rewrite `template.html` flex → table layout
-6. Add `.gitignore` and `config.example.json`
-7. Create `invoice.spec` (PyInstaller)
+1. Split `requirements.txt` → `requirements.txt` (runtime) and `requirements-dev.txt` (pytest); remove weasyprint, add xhtml2pdf to runtime
+2. Fix `helpers.py` strftime (`%-d` → `f"{d.day} {d.strftime('%B %Y')}"`)
+3. Update `invoice.py`:
+   - Remove stale GTK setup comment from module docstring
+   - Replace `BASE_DIR` with `BUNDLE_DIR` (for template) and `APP_DATA_DIR`/`CONFIG_FILE`/`INVOICES_FILE`/`INVOICES_DIR` (for data)
+   - Add `APP_DATA_DIR.mkdir(parents=True, exist_ok=True)` at startup
+   - Replace `generate_pdf()` with xhtml2pdf implementation (check `.err`)
+   - Store `pdf_path` as absolute string in invoice log
+   - Fix `resend_flow()` to use absolute PDF path directly
+4. Rewrite `template.html` flex → table layout
+5. Update `.gitignore` (add `invoices.json`, `build/`, `dist/`, `*.spec`)
+6. Add `config.example.json`
+7. Create `invoice.spec` (PyInstaller, `--onefile`, bundle `template.html`)
 8. Create `.github/workflows/build.yml`
 9. Write `README.md`
 10. Create private GitHub repo and push
