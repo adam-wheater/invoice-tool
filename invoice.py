@@ -4,10 +4,6 @@ Invoice Generator
 =================
 Generates professional PDF invoices and emails them via SMTP.
 
-SETUP (one-time):
-  sudo apt-get install -y libpango-1.0-0 libcairo2 libgdk-pixbuf2.0-0 libffi-dev
-  pip install -r requirements.txt
-
 USAGE:
   python invoice.py
 """
@@ -26,7 +22,7 @@ from email.utils import parseaddr
 from pathlib import Path
 
 import jinja2
-import weasyprint
+from xhtml2pdf import pisa
 
 from helpers import (
     calculate_totals,
@@ -39,11 +35,20 @@ from helpers import (
     validate_email,
 )
 
-BASE_DIR = Path(__file__).parent
-CONFIG_FILE = BASE_DIR / 'config.json'
-INVOICES_FILE = BASE_DIR / 'invoices.json'
-INVOICES_DIR = BASE_DIR / 'invoices'
-TEMPLATE_FILE = BASE_DIR / 'template.html'
+# Template is bundled inside the exe (sys._MEIPASS) or lives next to this file in dev
+BUNDLE_DIR = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).parent
+TEMPLATE_FILE = BUNDLE_DIR / 'template.html'
+
+# User data lives in platform-appropriate writable locations
+def _app_data_dir() -> Path:
+    if sys.platform == 'win32':
+        return Path(os.environ.get('APPDATA', Path.home())) / 'invoice-tool'
+    return Path.home() / '.invoice-tool'
+
+APP_DATA_DIR = _app_data_dir()
+CONFIG_FILE = APP_DATA_DIR / 'config.json'
+INVOICES_FILE = APP_DATA_DIR / 'invoices.json'
+INVOICES_DIR = Path.home() / 'Documents' / 'Invoices'
 
 CONFIG_DEFAULTS = {
     'bank_payee': 'Adam Wheater',
@@ -86,6 +91,7 @@ def _load_config_file() -> dict:
 
 
 def _save_config(config: dict) -> None:
+    APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(json.dumps(config, indent=2))
 
 
@@ -126,6 +132,7 @@ def _load_invoices() -> list:
 
 
 def _save_invoices(records: list) -> None:
+    APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
     INVOICES_FILE.write_text(json.dumps(records, indent=2, default=str))
 
 
@@ -410,7 +417,7 @@ def resend_flow(config: dict) -> None:
         recipient = raw_email
 
     # Check PDF exists
-    pdf_path = BASE_DIR / record['pdf_path']
+    pdf_path = Path(record['pdf_path'])
     if not pdf_path.exists():
         print(f'\n  ERROR: PDF not found at {record["pdf_path"]}')
         print('  The file may have been moved or deleted.')
@@ -453,8 +460,11 @@ def render_html(template_data: dict) -> str:
 
 def generate_pdf(html: str, output_path: str) -> None:
     """Convert HTML string to PDF and save to output_path."""
-    INVOICES_DIR.mkdir(exist_ok=True)
-    weasyprint.HTML(string=html).write_pdf(output_path)
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'wb') as f:
+        result = pisa.CreatePDF(html, dest=f)
+    if result.err:
+        raise RuntimeError(f'PDF generation failed (xhtml2pdf error code {result.err})')
 
 
 # ── Email ──────────────────────────────────────────────────────────────────────
@@ -582,7 +592,7 @@ def main():
         'vat_applied': options['apply_vat'],
         'line_items': items,
         'notes': options['notes'],
-        'pdf_path': str(Path(out_path).relative_to(BASE_DIR)),
+        'pdf_path': str(Path(out_path).resolve()),
     }
     finalise_invoice(records, number, log_data)
 
