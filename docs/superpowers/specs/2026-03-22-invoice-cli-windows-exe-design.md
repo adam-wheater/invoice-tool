@@ -87,20 +87,59 @@ TEMPLATE_FILE = BUNDLE_DIR / 'template.html'
 
 - **`APP_DATA_DIR`** — where config and the invoice log live (see Section 4).
 
-### 3b. GitHub Actions workflow
+### 3b. PyInstaller spec file
+
+Generate the base spec with `pyi-makespec --onefile invoice.py`, then edit the `datas` line in the resulting `invoice.spec` to bundle `template.html`:
+
+```python
+# invoice.spec (relevant section)
+a = Analysis(
+    ['invoice.py'],
+    ...
+    datas=[('template.html', '.')],   # copies template.html into root of bundle
+    ...
+)
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    name='invoice',
+    console=True,
+    onefile=True,
+)
+```
+
+The `('template.html', '.')` entry means: copy `template.html` from the project root into the `.` directory of `sys._MEIPASS` at runtime.
+
+### 3c. GitHub Actions workflow
 
 **File:** `.github/workflows/build.yml`
 
 **Trigger:** `push` to tags matching `v*` (e.g. `v1.0.0`)
 
-**Steps (windows-latest runner):**
-1. Checkout repo
-2. Set up Python 3.11
-3. Install dependencies (`pip install -r requirements.txt pyinstaller`)
-4. Run PyInstaller with spec file
-5. Upload `dist/invoice.exe` as a GitHub Release asset
+```yaml
+permissions:
+  contents: write   # required to create releases and upload assets
 
-The `.exe` is **not** committed to git — it lives only in GitHub Releases. Users download from the release page.
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt pyinstaller
+      - run: pyinstaller invoice.spec
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/invoice.exe
+```
+
+`softprops/action-gh-release@v2` creates the GitHub Release (named after the tag) and attaches `invoice.exe` as a downloadable asset. `actions/upload-artifact` must NOT be used here — it stores workflow artifacts, not release assets.
+
+The `.exe` is **not** committed to git — it lives only in GitHub Releases. Users download from the Releases page.
 
 ---
 
