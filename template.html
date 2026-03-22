@@ -5,27 +5,26 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: Helvetica, Arial, sans-serif;
     font-size: 13px; color: #333; background: #fff;
   }
   .page { max-width: 740px; margin: 0 auto; padding: 40px; }
 
   /* Header */
-  .header {
-    display: flex; justify-content: space-between; align-items: flex-start;
-    margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #1a2e4a;
-  }
-  .business-name { font-size: 22px; font-weight: 700; color: #1a2e4a; }
+  .header { width: 100%; border-bottom: 3px solid #1a2e4a; margin-bottom: 40px; padding-bottom: 20px; }
+  .header td { vertical-align: top; }
+  .business-name { font-size: 22px; font-weight: bold; color: #1a2e4a; }
   .business-details { font-size: 11px; color: #666; margin-top: 6px; line-height: 1.6; }
   .invoice-title { text-align: right; }
   .invoice-title h1 {
     font-size: 28px; font-weight: 300; color: #1a2e4a;
     letter-spacing: 3px; text-transform: uppercase;
   }
-  .invoice-number { font-size: 14px; font-weight: 600; color: #1a2e4a; margin-top: 4px; }
+  .invoice-number { font-size: 14px; font-weight: bold; color: #1a2e4a; margin-top: 4px; }
 
   /* Meta row */
-  .meta { display: flex; justify-content: space-between; margin-bottom: 30px; }
+  .meta { width: 100%; margin-bottom: 30px; }
+  .meta td { vertical-align: top; }
   .bill-to h3, .dates h3 {
     font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
     color: #999; margin-bottom: 8px;
@@ -35,7 +34,7 @@
   .dates table { margin-left: auto; }
   .dates td { padding: 2px 0 2px 20px; font-size: 12px; }
   .dates td:first-child { color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .dates td:last-child { font-weight: 600; }
+  .dates td:last-child { font-weight: bold; }
 
   /* Line items table */
   table.items { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
@@ -52,14 +51,14 @@
   table.items tbody tr:last-child td { border-bottom: none; }
 
   /* Totals */
-  .totals { display: flex; justify-content: flex-end; margin-bottom: 30px; }
+  .totals { width: 100%; margin-bottom: 30px; }
   .totals-inner { width: 260px; }
   .totals-inner table { width: 100%; }
   .totals-inner td { padding: 4px 0; font-size: 12px; }
   .totals-inner td:last-child { text-align: right; padding-left: 20px; }
   .totals-inner .total-row td {
-    font-size: 15px; font-weight: 700; color: #1a2e4a;
-    border-top: 2px solid #1a2e4a; padding-top: 8px; margin-top: 4px;
+    font-size: 15px; font-weight: bold; color: #1a2e4a;
+    border-top: 2px solid #1a2e4a; padding-top: 8px;
   }
 
   /* Payment details */
@@ -73,7 +72,7 @@
   }
   .payment table td { font-size: 12px; padding: 3px 0; }
   .payment table td:first-child { color: #666; width: 130px; }
-  .payment table td:last-child { font-weight: 600; }
+  .payment table td:last-child { font-weight: bold; }
 
   /* Notes */
   .notes { margin-bottom: 20px; }
@@ -93,40 +92,44 @@
 <body>
 <div class="page">
 
-  <div class="header">
-    <div>
-      <div class="business-name">{{ business_name }}</div>
-      <div class="business-details">
-        {{ business_address | replace('\n', '<br>') | safe }}<br>
-        {{ business_email }}<br>
-        {{ business_phone }}
-      </div>
-    </div>
-    <div class="invoice-title">
-      <h1>Invoice</h1>
-      <div class="invoice-number">{{ number }}</div>
-    </div>
-  </div>
+  <table class="header" width="100%">
+    <tr>
+      <td>
+        <div class="business-name">{{ business_name }}</div>
+        <div class="business-details">
+          {{ business_address | replace('\n', '<br>') | safe }}<br>
+          {{ business_email }}<br>
+          {{ business_phone }}
+        </div>
+      </td>
+      <td class="invoice-title">
+        <h1>Invoice</h1>
+        <div class="invoice-number">{{ number }}</div>
+      </td>
+    </tr>
+  </table>
 
-  <div class="meta">
-    <div class="bill-to">
-      <h3>Bill To</h3>
-      <p>
-        <strong>{{ client_name }}</strong><br>
-        {{ client_email }}
-        {% if client_address %}
-        <br>{{ client_address | replace('\n', '<br>') | safe }}
-        {% endif %}
-      </p>
-    </div>
-    <div class="dates">
-      <h3>Details</h3>
-      <table>
-        <tr><td>Invoice Date</td><td>{{ date_issued.strftime('%d %b %Y') }}</td></tr>
-        <tr><td>Due Date</td><td>{{ date_due.strftime('%d %b %Y') }}</td></tr>
-      </table>
-    </div>
-  </div>
+  <table class="meta" width="100%">
+    <tr>
+      <td class="bill-to">
+        <h3>Bill To</h3>
+        <p>
+          <strong>{{ client_name }}</strong><br>
+          {{ client_email }}
+          {% if client_address %}
+          <br>{{ client_address | replace('\n', '<br>') | safe }}
+          {% endif %}
+        </p>
+      </td>
+      <td class="dates">
+        <h3>Details</h3>
+        <table>
+          <tr><td>Invoice Date</td><td>{{ date_issued.strftime('%d %b %Y') }}</td></tr>
+          <tr><td>Due Date</td><td>{{ date_due.strftime('%d %b %Y') }}</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 
   <table class="items">
     <thead>
@@ -142,24 +145,29 @@
       <tr>
         <td>{{ item.description }}</td>
         <td class="right">{{ item.qty | int if item.qty == (item.qty | int) else item.qty }}</td>
-        <td class="right">£{{ "%.2f" | format(item.unit_price) }}</td>
-        <td class="right">£{{ "%.2f" | format(item.qty * item.unit_price) }}</td>
+        <td class="right">&#163;{{ "%.2f" | format(item.unit_price) }}</td>
+        <td class="right">&#163;{{ "%.2f" | format(item.qty * item.unit_price) }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <div class="totals">
-    <div class="totals-inner">
-      <table>
-        <tr><td>Subtotal</td><td>£{{ "%.2f" | format(totals.subtotal) }}</td></tr>
-        {% if vat_applied %}
-        <tr><td>VAT (20%)</td><td>£{{ "%.2f" | format(totals.vat) }}</td></tr>
-        {% endif %}
-        <tr class="total-row"><td>Total Due</td><td>£{{ "%.2f" | format(totals.total) }}</td></tr>
-      </table>
-    </div>
-  </div>
+  <table class="totals" width="100%">
+    <tr>
+      <td></td>
+      <td width="260">
+        <div class="totals-inner">
+          <table>
+            <tr><td>Subtotal</td><td>&#163;{{ "%.2f" | format(totals.subtotal) }}</td></tr>
+            {% if vat_applied %}
+            <tr><td>VAT (20%)</td><td>&#163;{{ "%.2f" | format(totals.vat) }}</td></tr>
+            {% endif %}
+            <tr class="total-row"><td>Total Due</td><td>&#163;{{ "%.2f" | format(totals.total) }}</td></tr>
+          </table>
+        </div>
+      </td>
+    </tr>
+  </table>
 
   <div class="payment">
     <h3>Payment Details</h3>
