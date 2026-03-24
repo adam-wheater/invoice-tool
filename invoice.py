@@ -54,24 +54,39 @@ CONFIG_DEFAULTS = {
     'smtp_port': 587,
 }
 
+# Fields that must be non-blank (port handled separately as numeric)
 REQUIRED_STRING_FIELDS = [
     'business_name', 'business_address', 'business_email', 'business_phone',
     'bank_payee', 'bank_sort_code', 'bank_account',
     'smtp_host', 'smtp_user', 'smtp_password', 'smtp_from',
 ]
 
+# Grouped sections shown during first-run setup wizard
+SETUP_SECTIONS = [
+    ('Business details', [
+        'business_name', 'business_address', 'business_email', 'business_phone',
+    ]),
+    ('Bank details  (printed on every invoice)', [
+        'bank_payee', 'bank_sort_code', 'bank_account',
+    ]),
+    ('Email / SMTP settings  (used to send invoices)', [
+        'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from',
+    ]),
+]
+
 FIELD_PROMPTS = {
-    'business_name': 'Business name',
+    'business_name':    'Business name',
     'business_address': 'Business address',
-    'business_email': 'Business email',
-    'business_phone': 'Business phone',
-    'bank_payee': 'Bank payee name',
-    'bank_sort_code': 'Bank sort code',
-    'bank_account': 'Bank account number',
-    'smtp_host': 'SMTP host',
-    'smtp_user': 'SMTP username (email address)',
-    'smtp_password': 'SMTP password',
-    'smtp_from': 'From address, e.g. Your Name <you@domain.com>',
+    'business_email':   'Business email',
+    'business_phone':   'Business phone',
+    'bank_payee':       'Name on bank account',
+    'bank_sort_code':   'Sort code  (e.g. 12-34-56)',
+    'bank_account':     'Account number',
+    'smtp_host':        'Email server address  (e.g. smtp.gmail.com / smtp.hostinger.com)',
+    'smtp_port':        'Email server port  (587 for TLS, 465 for SSL)',
+    'smtp_user':        'Email login  (usually your email address)',
+    'smtp_password':    'Email password',
+    'smtp_from':        'Display name + address  (e.g. Jane Smith <jane@example.com>)',
 }
 
 
@@ -93,7 +108,9 @@ def _save_config(config: dict) -> None:
 
 def ensure_config() -> dict:
     """Load config; inject env vars, then prompt for any remaining blank fields."""
+    first_run = not CONFIG_FILE.exists()
     config = {**CONFIG_DEFAULTS, **_load_config_file()}
+
     # Override with env vars if set (credentials never need to touch disk)
     if os.environ.get('INVOICE_SMTP_USER'):
         config['smtp_user'] = os.environ['INVOICE_SMTP_USER']
@@ -101,15 +118,34 @@ def ensure_config() -> dict:
             config['smtp_from'] = os.environ['INVOICE_SMTP_USER']
     if os.environ.get('INVOICE_SMTP_PASSWORD'):
         config['smtp_password'] = os.environ['INVOICE_SMTP_PASSWORD']
+
+    all_fields = [f for _, fields in SETUP_SECTIONS for f in fields]
+    missing = [
+        f for f in all_fields
+        if not str(config.get(f, '')).strip()
+    ]
+    if not missing:
+        return config
+
+    if first_run:
+        print('\n  Welcome! Let\'s set up your invoice tool.')
+        print('  You only need to do this once — answers are saved locally.\n')
+
     changed = False
-    for field in REQUIRED_STRING_FIELDS:
-        if not str(config.get(field, '')).strip():
+    for section_title, fields in SETUP_SECTIONS:
+        section_fields = [f for f in fields if f in missing]
+        if not section_fields:
+            continue
+        print(f'\n  {section_title}')
+        print('  ' + '-' * len(section_title))
+        for field in section_fields:
             label = FIELD_PROMPTS.get(field, field)
             default = str(CONFIG_DEFAULTS.get(field, ''))
-            hint = f' [{default}]' if default else ''
+            hint = f'  [default: {default}]' if default else ''
             value = input(f'  {label}{hint}: ').strip() or default
             config[field] = value
             changed = True
+
     if changed:
         _save_config(config)
     return config
