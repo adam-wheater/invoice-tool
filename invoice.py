@@ -481,8 +481,10 @@ def resend_flow(config: dict) -> None:
     try:
         send_invoice_email(config, invoice_data, html, str(pdf_path), recipient=recipient)
     except Exception as e:
-        print(f'\n  ERROR sending email: {e}')
-        print(f'  PDF is at: {pdf_path}')
+        print(f'\n  ERROR sending email:')
+        print(_smtp_error_hint(config['smtp_host'], e))
+        print(f'\n  PDF is at: {pdf_path}')
+        print('  Use option 3 to test your SMTP settings.')
         return
 
     print(f'\n  {record["number"]} resent to {recipient}')
@@ -570,55 +572,101 @@ def send_from_folder_flow(config: dict) -> None:
     try:
         send_invoice_email(config, invoice_data, html, str(pdf_path), recipient=email)
     except Exception as e:
-        print(f'\n  ERROR sending email: {e}')
+        print(f'\n  ERROR sending email:')
+        print(_smtp_error_hint(config['smtp_host'], e))
+        print('  Use option 3 to test your SMTP settings.')
         return
 
     print(f'\n  {pdf_path.name} sent to {email}')
 
 
 def smtp_test_flow(config: dict) -> None:
-    """Send a test email via SMTP to verify the connection and credentials."""
+    """Step-by-step SMTP diagnostic — connect, TLS, login, send."""
+    host = config['smtp_host']
+    port = int(config['smtp_port'])
+
+    print(f'\n  SMTP settings in use:')
+    print(f'    Host:     {host}:{port}')
+    print(f'    Login:    {config["smtp_user"]}')
+    print(f'    From:     {config["smtp_from"]}')
+
     _, from_addr = parseaddr(config['smtp_from'])
     to_addr = from_addr or config['smtp_user']
-
-    override = input(f'  Send test email to [{to_addr}]: ').strip()
+    override = input(f'\n  Send test email to [{to_addr}]: ').strip()
     if override:
         if not validate_email(override):
             print('  Invalid email address.')
             return
         to_addr = override
 
-    print(f'\n  Connecting to {config["smtp_host"]}:{config["smtp_port"]}...')
+    print()
+
+    # Step 1: Connect
+    print(f'  [1/4] Connecting to {host}:{port} ...', end='', flush=True)
     try:
-        port = int(config['smtp_port'])
         if port == 465:
-            conn = smtplib.SMTP_SSL(config['smtp_host'], port)
+            server = smtplib.SMTP_SSL(host, port, timeout=_SMTP_TIMEOUT)
         else:
-            conn = smtplib.SMTP(config['smtp_host'], port)
-            conn.starttls()
+            server = smtplib.SMTP(host, port, timeout=_SMTP_TIMEOUT)
+        print('  OK')
+    except Exception as exc:
+        print('  FAILED')
+        print(_smtp_error_hint(host, exc))
+        return
 
-        with conn as server:
-            server.login(config['smtp_user'], config['smtp_password'])
-            print('  Login successful.')
+    # Step 2: STARTTLS
+    if port == 465:
+        print('  [2/4] SSL already active — no STARTTLS needed.  OK')
+    else:
+        print('  [2/4] Starting TLS ...', end='', flush=True)
+        try:
+            server.starttls()
+            print('  OK')
+        except Exception as exc:
+            print('  FAILED')
+            print(f'  {exc}')
+            server.close()
+            return
 
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = 'Invoice Tool — SMTP test'
-            msg['From'] = config['smtp_from']
-            msg['To'] = to_addr
-            msg.attach(MIMEText('This is a test email from your Invoice Tool. SMTP is working correctly.', 'plain', 'utf-8'))
-            msg.attach(MIMEText('<p>This is a test email from your <strong>Invoice Tool</strong>. SMTP is working correctly.</p>', 'html', 'utf-8'))
+    # Step 3: Login
+    print(f'  [3/4] Logging in as {config["smtp_user"]} ...', end='', flush=True)
+    try:
+        server.login(config['smtp_user'], config['smtp_password'])
+        print('  OK')
+    except Exception as exc:
+        print('  FAILED')
+        print(_smtp_error_hint(host, exc))
+        server.close()
+        return
 
-            _, envelope_from = parseaddr(config['smtp_from'])
-            server.sendmail(envelope_from, [to_addr], msg.as_string())
+    # Step 4: Send
+    print(f'  [4/4] Sending test email to {to_addr} ...', end='', flush=True)
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'Invoice Tool — SMTP test'
+        msg['From'] = config['smtp_from']
+        msg['To'] = to_addr
+        msg.attach(MIMEText(
+            'This is a test email from your Invoice Tool. SMTP is working correctly.',
+            'plain', 'utf-8',
+        ))
+        msg.attach(MIMEText(
+            '<p>This is a test email from your <strong>Invoice Tool</strong>. '
+            'SMTP is working correctly.</p>',
+            'html', 'utf-8',
+        ))
+        _, envelope_from = parseaddr(config['smtp_from'])
+        server.sendmail(envelope_from, [to_addr], msg.as_string())
+        server.quit()
+        print('  OK')
+    except Exception as exc:
+        print('  FAILED')
+        print(_smtp_error_hint(host, exc))
+        server.close()
+        return
 
-        print(f'\n  Test email sent to {to_addr} — SMTP is working.\n')
-
-    except smtplib.SMTPAuthenticationError:
-        print('\n  Authentication failed — check smtp_user and smtp_password.')
-    except smtplib.SMTPConnectError as e:
-        print(f'\n  Could not connect to {config["smtp_host"]}:{config["smtp_port"]}: {e}')
-    except Exception as e:
-        print(f'\n  SMTP test failed: {e}')
+    print(f'\n  All steps passed — SMTP is working correctly.')
+    print(f'  Check {to_addr} for the test email.')
 
 
 # ── PDF generation ─────────────────────────────────────────────────────────────
@@ -641,6 +689,66 @@ def generate_pdf(html: str, output_path: str) -> None:
 
 
 # ── Email ──────────────────────────────────────────────────────────────────────
+
+_SMTP_TIMEOUT = 15  # seconds
+
+
+def _smtp_error_hint(host: str, exc: Exception) -> str:
+    """Return a human-readable diagnostic for an SMTP error."""
+    host_lower = host.lower()
+    is_gmail = 'gmail' in host_lower
+    is_outlook = any(x in host_lower for x in ('outlook', 'office365', 'hotmail', 'live'))
+
+    lines = []
+
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        raw = exc.smtp_error
+        resp = raw.decode(errors='replace') if isinstance(raw, bytes) else str(raw)
+        lines.append(f'  Server said: {exc.smtp_code} {resp.strip()}')
+        lines.append('')
+        if is_gmail:
+            lines.append('  Gmail requires an App Password — your normal Google password')
+            lines.append('  will not work if 2-Step Verification is on.')
+            lines.append('  To fix: myaccount.google.com → Security → App passwords')
+            lines.append('  Generate a password for "Mail" and paste it into smtp_password.')
+        elif is_outlook:
+            lines.append('  Outlook / Office 365: make sure "Authenticated SMTP" is')
+            lines.append('  enabled for your account in the Microsoft 365 admin centre.')
+            lines.append('  Admin centre → Users → Active users → [your account]')
+            lines.append('  → Mail tab → Manage email apps → Authenticated SMTP.')
+        else:
+            lines.append('  Check smtp_user and smtp_password are correct.')
+            lines.append('  Some providers require SMTP access to be enabled in account settings,')
+            lines.append('  or use a separate app password rather than your login password.')
+
+    elif isinstance(exc, (smtplib.SMTPConnectError, ConnectionRefusedError)):
+        lines.append(f'  Could not connect to {host} — check smtp_host and smtp_port.')
+        lines.append('  Common ports: 587 (STARTTLS)  465 (SSL/TLS)')
+
+    elif isinstance(exc, TimeoutError):
+        lines.append(f'  Connection timed out — {host} is not reachable on that port.')
+        lines.append('  Check smtp_host is correct and that no firewall is blocking it.')
+
+    elif isinstance(exc, smtplib.SMTPException):
+        lines.append(f'  SMTP error: {exc}')
+
+    else:
+        lines.append(f'  {exc}')
+
+    return '\n'.join(lines)
+
+
+def _smtp_connect(config: dict):
+    """Open and return an authenticated SMTP connection."""
+    port = int(config['smtp_port'])
+    if port == 465:
+        server = smtplib.SMTP_SSL(config['smtp_host'], port, timeout=_SMTP_TIMEOUT)
+    else:
+        server = smtplib.SMTP(config['smtp_host'], port, timeout=_SMTP_TIMEOUT)
+        server.starttls()
+    server.login(config['smtp_user'], config['smtp_password'])
+    return server
+
 
 def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_path: str, recipient: Optional[str] = None) -> None:
     """Send invoice email with HTML body and PDF attachment via SMTP SSL.
@@ -670,14 +778,7 @@ def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_pat
     part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
     msg.attach(part)
 
-    port = int(config['smtp_port'])
-    if port == 465:
-        conn = smtplib.SMTP_SSL(config['smtp_host'], port)
-    else:
-        conn = smtplib.SMTP(config['smtp_host'], port)
-        conn.starttls()
-    with conn as server:
-        server.login(config['smtp_user'], config['smtp_password'])
+    with _smtp_connect(config) as server:
         _, envelope_from = parseaddr(config['smtp_from'])
         server.sendmail(envelope_from, [to_addr], msg.as_string())
 
@@ -738,9 +839,11 @@ def new_invoice_flow(config: dict) -> None:
     try:
         send_invoice_email(config, invoice_data, html, out_path)
     except Exception as e:
-        print(f'\n  ERROR sending email: {e}')
-        print(f'  PDF saved at: {out_path}')
-        print('  Invoice log record left as pending — use option 2 to send manually.')
+        print(f'\n  ERROR sending email:')
+        print(_smtp_error_hint(config['smtp_host'], e))
+        print(f'\n  PDF saved at: {out_path}')
+        print('  Invoice log record left as pending — use option 2 to send it manually.')
+        print('  Use option 3 to test your SMTP settings.')
         return
 
     # 7. Finalise log
