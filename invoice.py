@@ -120,29 +120,31 @@ def ensure_config() -> dict:
         config['smtp_password'] = os.environ['INVOICE_SMTP_PASSWORD']
 
     all_fields = [f for _, fields in SETUP_SECTIONS for f in fields]
-    missing = [
-        f for f in all_fields
-        if not str(config.get(f, '')).strip()
-    ]
-    if not missing:
+    missing = [f for f in all_fields if not str(config.get(f, '')).strip()]
+
+    if not first_run and not missing:
         return config
 
     if first_run:
         print('\n  Welcome! Let\'s set up your invoice tool.')
-        print('  You only need to do this once — answers are saved locally.\n')
+        print('  You only need to do this once — answers are saved locally.')
+        fields_to_prompt = all_fields
+    else:
+        fields_to_prompt = missing
 
     changed = False
     for section_title, fields in SETUP_SECTIONS:
-        section_fields = [f for f in fields if f in missing]
+        section_fields = [f for f in fields if f in fields_to_prompt]
         if not section_fields:
             continue
         print(f'\n  {section_title}')
         print('  ' + '-' * len(section_title))
         for field in section_fields:
             label = FIELD_PROMPTS.get(field, field)
-            default = str(CONFIG_DEFAULTS.get(field, ''))
-            hint = f'  [default: {default}]' if default else ''
-            value = input(f'  {label}{hint}: ').strip() or default
+            current = str(config.get(field, ''))
+            fallback = str(CONFIG_DEFAULTS.get(field, ''))
+            hint = f'  [{current or fallback}]' if (current or fallback) else ''
+            value = input(f'  {label}{hint}: ').strip() or current or fallback
             config[field] = value
             changed = True
 
