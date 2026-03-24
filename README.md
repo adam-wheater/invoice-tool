@@ -1,49 +1,81 @@
 # Invoice Generator
 
-A command-line tool that generates professional PDF invoices and emails them directly to clients via SMTP. Runs on Windows with no installation required.
+This program lets you create professional invoices and email them straight to your clients — all from your Windows computer. No installation needed, just double-click and go.
 
-## Download
+---
 
-Download the latest `invoice.exe` from the [Releases page](../../releases/latest).
+## Step 1 — Download the program
 
-## Getting Started
+Click here to download: [Download invoice.exe](../../releases/latest)
 
-1. Double-click `invoice.exe` (or run it from a terminal).
-2. On first launch you'll be asked for your settings — fill these in once:
-   - Business name, address, email, phone
-   - Bank payee name, sort code, account number
-   - SMTP host, port, username, password, from address
-3. Settings are saved automatically. You won't be asked again.
+You'll get a single file called **invoice.exe**. Save it somewhere easy to find, like your Desktop.
 
-## Where things are saved
+---
 
-| Item | Location |
+## Step 2 — Run it for the first time
+
+1. **Double-click `invoice.exe`**
+2. It will ask you a series of questions the very first time — just type in your answers and press Enter after each one:
+   - Your business name, address, email, and phone number
+   - Your bank details (so clients know where to pay you): account holder name, sort code, account number
+   - Your email settings (so the program can send emails on your behalf) — see the table below if you're not sure what to enter
+
+> The program saves your answers automatically. You'll never be asked these questions again.
+
+---
+
+## Step 3 — Create and send an invoice
+
+Each time you run the program, just follow the on-screen questions:
+- Who is the client?
+- What did you do for them?
+- How much do you charge?
+
+The program will create a PDF invoice and email it to your client for you. It also keeps a record of every invoice you've sent.
+
+---
+
+## Where does everything get saved?
+
+| What | Where on your computer |
 |---|---|
-| Settings | `%APPDATA%\invoice-tool\config.json` |
-| Invoice log | `%APPDATA%\invoice-tool\invoices.json` |
-| PDF invoices | `Documents\Invoices\` |
+| Your settings | Saved automatically — you don't need to find this |
+| Your invoice history | Saved automatically — you don't need to find this |
+| PDF copies of your invoices | In your **Documents** folder, inside a folder called **Invoices** |
 
-## Re-run first-time setup
+---
 
-Delete `%APPDATA%\invoice-tool\config.json` and re-launch the exe.
+## Email settings — what to enter
 
-To open `%APPDATA%`, press `Win + R`, type `%APPDATA%` and press Enter.
+When you first run the program, it asks for email settings. These tell the program how to send email on your behalf. Use the row that matches where your email comes from:
 
-## SMTP settings
-
-The tool sends email via any SMTP server. Common settings:
-
-| Provider | Host | Port |
+| My email is with... | Host | Port |
 |---|---|---|
 | Hostinger | smtp.hostinger.com | 587 |
 | Gmail | smtp.gmail.com | 587 |
-| Outlook | smtp-mail.outlook.com | 587 |
+| Outlook / Hotmail | smtp-mail.outlook.com | 587 |
 
-For Gmail/Outlook you may need to generate an app-specific password.
+**Username** = your full email address
+**Password** = your email password (or an app password — see note below)
 
-## Resending an invoice
+> **Gmail or Outlook users:** Google and Microsoft sometimes block programs from logging in with your normal password. If sending fails, search online for "Gmail app password" or "Outlook app password" and use that instead.
 
-Run the tool and choose option `2` to resend any previously sent invoice to the same or a different address.
+---
+
+## Resending an old invoice
+
+Run the program again and choose option **2**. You'll see a list of invoices you've already sent — pick one and it will be resent.
+
+---
+
+## Starting over (re-entering your settings)
+
+If you made a mistake in your settings and want to start fresh:
+
+1. Press the **Windows key + R** on your keyboard (a small box appears)
+2. Type `%APPDATA%\invoice-tool` and press Enter
+3. Delete the file called `config.json`
+4. Run the program again — it will ask you all the setup questions from the beginning
 
 ---
 
