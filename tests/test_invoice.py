@@ -29,8 +29,8 @@ def test_ensure_config_reads_smtp_user_from_env(tmp_path, monkeypatch):
     # Provide all other required fields so no prompt is triggered
     base = {
         'business_name': 'Test Co', 'business_address': '1 St', 'business_email': 'a@b.com',
-        'business_phone': '01234', 'bank_payee': 'Adam Wheater', 'bank_sort_code': '23-01-20',
-        'bank_account': '66530274', 'smtp_host': 'smtp.hostinger.com',
+        'business_phone': '01234', 'bank_payee': 'Test Payee', 'bank_sort_code': '00-00-00',
+        'bank_account': '00000000', 'smtp_host': 'smtp.example.com',
         'smtp_user': '', 'smtp_password': 'secret', 'smtp_from': 'a@b.com',
     }
     _write_config(tmp_path, base)
@@ -46,8 +46,8 @@ def test_ensure_config_reads_smtp_password_from_env(tmp_path, monkeypatch):
 
     base = {
         'business_name': 'Test Co', 'business_address': '1 St', 'business_email': 'a@b.com',
-        'business_phone': '01234', 'bank_payee': 'Adam Wheater', 'bank_sort_code': '23-01-20',
-        'bank_account': '66530274', 'smtp_host': 'smtp.hostinger.com',
+        'business_phone': '01234', 'bank_payee': 'Test Payee', 'bank_sort_code': '00-00-00',
+        'bank_account': '00000000', 'smtp_host': 'smtp.example.com',
         'smtp_user': 'user@example.com', 'smtp_password': '', 'smtp_from': 'user@example.com',
     }
     _write_config(tmp_path, base)
@@ -63,8 +63,8 @@ def test_ensure_config_smtp_from_defaults_to_env_user_when_blank(tmp_path, monke
 
     base = {
         'business_name': 'Test Co', 'business_address': '1 St', 'business_email': 'a@b.com',
-        'business_phone': '01234', 'bank_payee': 'Adam Wheater', 'bank_sort_code': '23-01-20',
-        'bank_account': '66530274', 'smtp_host': 'smtp.hostinger.com',
+        'business_phone': '01234', 'bank_payee': 'Test Payee', 'bank_sort_code': '00-00-00',
+        'bank_account': '00000000', 'smtp_host': 'smtp.example.com',
         'smtp_user': '', 'smtp_password': 'secret', 'smtp_from': '',
     }
     _write_config(tmp_path, base)
@@ -162,10 +162,10 @@ def _sample_record(**overrides):
 
 def _sample_config():
     return {
-        'business_name': 'DigiDuo', 'business_address': '73 Hunderton Road',
-        'business_email': 'adam@digiduo.co.uk', 'business_phone': '07542581355',
-        'bank_payee': 'Adam Wheater', 'bank_sort_code': '23-01-20',
-        'bank_account': '66530274',
+        'business_name': 'Test Business', 'business_address': '1 Example Street',
+        'business_email': 'test@example.com', 'business_phone': '01234567890',
+        'bank_payee': 'Test Payee', 'bank_sort_code': '00-00-00',
+        'bank_account': '00000000',
     }
 
 
@@ -203,8 +203,8 @@ def test_build_invoice_data_from_record_notes_defaults_to_empty():
 
 def test_build_invoice_data_from_record_business_fields_from_config():
     data = invoice.build_invoice_data_from_record(_sample_record(), _sample_config())
-    assert data['business_name'] == 'DigiDuo'
-    assert data['bank_payee'] == 'Adam Wheater'
+    assert data['business_name'] == 'Test Business'
+    assert data['bank_payee'] == 'Test Payee'
 
 
 def test_build_invoice_data_from_record_plain_text_body_present():

@@ -51,10 +51,6 @@ INVOICES_FILE = APP_DATA_DIR / 'invoices.json'
 INVOICES_DIR = Path.home() / 'Documents' / 'Invoices'
 
 CONFIG_DEFAULTS = {
-    'bank_payee': 'Adam Wheater',
-    'bank_sort_code': '23-01-20',
-    'bank_account': '66530274',
-    'smtp_host': 'smtp.hostinger.com',
     'smtp_port': 587,
 }
 
