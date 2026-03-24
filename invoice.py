@@ -403,10 +403,11 @@ def prompt_confirmation() -> bool:
 
 
 def prompt_mode() -> str:
-    """Prompt the user to choose a mode. Returns 'new', 'send_folder', or 'smtp_test'."""
+    """Prompt the user to choose a mode. Returns 'new', 'send_folder', 'smtp_test', or 'exit'."""
     print('  1) New invoice')
     print('  2) Send unsent invoice from folder')
-    print('  3) Test SMTP connection\n')
+    print('  3) Test SMTP connection')
+    print('  0) Exit\n')
     while True:
         raw = input('  Choice [1]: ').strip()
         if raw in ('', '1'):
@@ -415,7 +416,9 @@ def prompt_mode() -> str:
             return 'send_folder'
         if raw == '3':
             return 'smtp_test'
-        print('  Please enter 1, 2, or 3.')
+        if raw == '0':
+            return 'exit'
+        print('  Please enter 0, 1, 2, or 3.')
 
 
 def resend_flow(config: dict) -> None:
@@ -425,7 +428,7 @@ def resend_flow(config: dict) -> None:
 
     if not sent:
         print('  No sent invoices found.')
-        sys.exit(0)
+        return
 
     # Show list
     print('\n  Sent invoices:')
@@ -468,7 +471,7 @@ def resend_flow(config: dict) -> None:
             break
         if confirm in ('n', ''):
             print('  Cancelled.')
-            sys.exit(0)
+            return
 
     # Build, render, send
     invoice_data = build_invoice_data_from_record(record, config)
@@ -480,9 +483,9 @@ def resend_flow(config: dict) -> None:
     except Exception as e:
         print(f'\n  ERROR sending email: {e}')
         print(f'  PDF is at: {pdf_path}')
-        sys.exit(1)
+        return
 
-    print(f'\n  {record["number"]} resent to {recipient}\n')
+    print(f'\n  {record["number"]} resent to {recipient}')
 
 
 def send_from_folder_flow(config: dict) -> None:
@@ -490,12 +493,12 @@ def send_from_folder_flow(config: dict) -> None:
     # Find PDFs in INVOICES_DIR
     if not INVOICES_DIR.exists():
         print(f'  Invoices folder not found: {INVOICES_DIR}')
-        sys.exit(0)
+        return
 
     pdfs = sorted(INVOICES_DIR.glob('*.pdf'))
     if not pdfs:
         print(f'  No PDF files found in {INVOICES_DIR}')
-        sys.exit(0)
+        return
 
     # Cross-reference with sent records so user can see what's already been sent
     sent_paths = {r.get('pdf_path', '') for r in _load_invoices() if r.get('status') == 'sent'}
@@ -548,7 +551,7 @@ def send_from_folder_flow(config: dict) -> None:
             break
         if confirm in ('n', ''):
             print('  Cancelled.')
-            sys.exit(0)
+            return
 
     # Build a minimal message and send
     if record:
@@ -568,9 +571,9 @@ def send_from_folder_flow(config: dict) -> None:
         send_invoice_email(config, invoice_data, html, str(pdf_path), recipient=email)
     except Exception as e:
         print(f'\n  ERROR sending email: {e}')
-        sys.exit(1)
+        return
 
-    print(f'\n  {pdf_path.name} sent to {email}\n')
+    print(f'\n  {pdf_path.name} sent to {email}')
 
 
 def smtp_test_flow(config: dict) -> None:
@@ -582,7 +585,7 @@ def smtp_test_flow(config: dict) -> None:
     if override:
         if not validate_email(override):
             print('  Invalid email address.')
-            sys.exit(1)
+            return
         to_addr = override
 
     print(f'\n  Connecting to {config["smtp_host"]}:{config["smtp_port"]}...')
@@ -612,13 +615,10 @@ def smtp_test_flow(config: dict) -> None:
 
     except smtplib.SMTPAuthenticationError:
         print('\n  Authentication failed — check smtp_user and smtp_password.')
-        sys.exit(1)
     except smtplib.SMTPConnectError as e:
         print(f'\n  Could not connect to {config["smtp_host"]}:{config["smtp_port"]}: {e}')
-        sys.exit(1)
     except Exception as e:
         print(f'\n  SMTP test failed: {e}')
-        sys.exit(1)
 
 
 # ── PDF generation ─────────────────────────────────────────────────────────────
@@ -684,41 +684,26 @@ def send_invoice_email(config: dict, invoice_data: dict, html_body: str, pdf_pat
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
-def main():
-    print('\n╔══════════════════════════════════════════════════════╗')
-    print('║               Invoice Generator                     ║')
-    print('╚══════════════════════════════════════════════════════╝\n')
-
-    # 1. Config
-    config = ensure_config()
-
-    # 2. Mode selection
-    mode = prompt_mode()
-    if mode == 'send_folder':
-        send_from_folder_flow(config)
-        return
-    if mode == 'smtp_test':
-        smtp_test_flow(config)
-        return
-
-    # 3. Reserve invoice number (written to log immediately)
+def new_invoice_flow(config: dict) -> None:
+    """Handle the create-and-send new invoice flow."""
+    # 1. Reserve invoice number (written to log immediately)
     number, records = reserve_invoice_number()
     print(f'\nInvoice number: {number}')
 
-    # 4. Collect details
+    # 2. Collect details
     client = prompt_client_details()
     items = prompt_line_items()
     options = prompt_invoice_options()
     totals = calculate_totals(items, options['apply_vat'])
 
-    # 5. Show summary and confirm
+    # 3. Show summary and confirm
     print_summary(number, client, items, options, totals)
     if not prompt_confirmation():
         cancel_invoice(records, number)
         print('\nCancelled — no invoice sent.')
-        sys.exit(0)
+        return
 
-    # 6. Assemble invoice data
+    # 4. Assemble invoice data
     issued = date.today()
     invoice_data = {
         'number': number,
@@ -741,24 +726,24 @@ def main():
     }
     invoice_data['plain_text_body'] = format_plain_text_body(invoice_data)
 
-    # 7. Generate PDF
+    # 5. Generate PDF
     print('\nGenerating PDF...')
     html = render_html(invoice_data)
     out_path = pdf_output_path(INVOICES_DIR, number, client['client_name'], issued)
     generate_pdf(html, out_path)
     print(f'  Saved: {out_path}')
 
-    # 8. Send email
+    # 6. Send email
     print('Sending email...')
     try:
         send_invoice_email(config, invoice_data, html, out_path)
     except Exception as e:
         print(f'\n  ERROR sending email: {e}')
         print(f'  PDF saved at: {out_path}')
-        print('  Invoice log record left as pending — re-run or send manually.')
-        sys.exit(1)
+        print('  Invoice log record left as pending — use option 2 to send manually.')
+        return
 
-    # 9. Finalise log
+    # 7. Finalise log
     log_data = {
         'client_name': client['client_name'],
         'client_email': client['client_email'],
@@ -773,7 +758,28 @@ def main():
     finalise_invoice(records, number, log_data)
 
     print(f'\n  Invoice {number} sent to {client["client_email"]}')
-    print(f'  PDF: {out_path}\n')
+    print(f'  PDF: {out_path}')
+
+
+def main():
+    print('\n╔══════════════════════════════════════════════════════╗')
+    print('║               Invoice Generator                     ║')
+    print('╚══════════════════════════════════════════════════════╝')
+
+    config = ensure_config()
+
+    while True:
+        print()
+        mode = prompt_mode()
+        if mode == 'exit':
+            print('  Goodbye.\n')
+            break
+        elif mode == 'new':
+            new_invoice_flow(config)
+        elif mode == 'send_folder':
+            send_from_folder_flow(config)
+        elif mode == 'smtp_test':
+            smtp_test_flow(config)
 
 
 if __name__ == '__main__':
