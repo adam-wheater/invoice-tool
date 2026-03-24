@@ -1,0 +1,14 @@
+{
+  "business_name": "",
+  "business_address": "",
+  "business_email": "",
+  "business_phone": "",
+  "bank_payee": "",
+  "bank_sort_code": "",
+  "bank_account": "",
+  "smtp_host": "smtp.example.com",
+  "smtp_port": 587,
+  "smtp_user": "",
+  "smtp_password": "",
+  "smtp_from": "Your Name <you@example.com>"
+}
