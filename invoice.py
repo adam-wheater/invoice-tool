@@ -403,16 +403,19 @@ def prompt_confirmation() -> bool:
 
 
 def prompt_mode() -> str:
-    """Prompt the user to choose between new invoice and resend. Returns 'new' or 'resend'."""
+    """Prompt the user to choose a mode. Returns 'new', 'send_folder', or 'smtp_test'."""
     print('  1) New invoice')
-    print('  2) Resend existing invoice\n')
+    print('  2) Send unsent invoice from folder')
+    print('  3) Test SMTP connection\n')
     while True:
         raw = input('  Choice [1]: ').strip()
         if raw in ('', '1'):
             return 'new'
         if raw == '2':
-            return 'resend'
-        print('  Please enter 1 or 2.')
+            return 'send_folder'
+        if raw == '3':
+            return 'smtp_test'
+        print('  Please enter 1, 2, or 3.')
 
 
 def resend_flow(config: dict) -> None:
@@ -480,6 +483,142 @@ def resend_flow(config: dict) -> None:
         sys.exit(1)
 
     print(f'\n  {record["number"]} resent to {recipient}\n')
+
+
+def send_from_folder_flow(config: dict) -> None:
+    """Send a PDF invoice from the invoices folder that was never emailed."""
+    # Find PDFs in INVOICES_DIR
+    if not INVOICES_DIR.exists():
+        print(f'  Invoices folder not found: {INVOICES_DIR}')
+        sys.exit(0)
+
+    pdfs = sorted(INVOICES_DIR.glob('*.pdf'))
+    if not pdfs:
+        print(f'  No PDF files found in {INVOICES_DIR}')
+        sys.exit(0)
+
+    # Cross-reference with sent records so user can see what's already been sent
+    sent_paths = {r.get('pdf_path', '') for r in _load_invoices() if r.get('status') == 'sent'}
+
+    print(f'\n  PDFs in {INVOICES_DIR}:')
+    print(f'   {"#":<4} {"Filename":<40}  {"Status":<10}')
+    print('  ' + '─' * 58)
+    for i, p in enumerate(pdfs, 1):
+        status = 'sent' if str(p.resolve()) in sent_paths else 'not sent'
+        print(f'   {i:<4} {p.name[:39]:<40}  {status:<10}')
+
+    # Select PDF
+    pdf_path = None
+    while pdf_path is None:
+        sel = input('\n  Enter # or filename: ').strip()
+        if not sel:
+            continue
+        try:
+            idx = int(sel) - 1
+            if 0 <= idx < len(pdfs):
+                pdf_path = pdfs[idx]
+        except ValueError:
+            matches = [p for p in pdfs if sel.lower() in p.name.lower()]
+            if len(matches) == 1:
+                pdf_path = matches[0]
+            elif len(matches) > 1:
+                print('  Multiple matches — be more specific.')
+        if pdf_path is None:
+            print('  Not found.')
+
+    # Try to look up record for pre-filled recipient
+    resolved = str(pdf_path.resolve())
+    all_records = _load_invoices()
+    record = next((r for r in all_records if r.get('pdf_path', '') == resolved), None)
+    default_email = record['client_email'] if record else ''
+
+    hint = f' [{default_email}]' if default_email else ''
+    email = ''
+    while not email:
+        raw = input(f'  Recipient email{hint}: ').strip() or default_email
+        if validate_email(raw):
+            email = raw
+        else:
+            print('  Invalid email address.')
+
+    # Confirm
+    while True:
+        confirm = input(f'\n  Send {pdf_path.name} to {email}? [y/N]: ').strip().lower()
+        if confirm == 'y':
+            break
+        if confirm in ('n', ''):
+            print('  Cancelled.')
+            sys.exit(0)
+
+    # Build a minimal message and send
+    if record:
+        invoice_data = build_invoice_data_from_record(record, config)
+        html = render_html(invoice_data)
+    else:
+        # No log record — send bare PDF with plain subject
+        invoice_data = {
+            'number': pdf_path.stem,
+            'client_email': email,
+            'plain_text_body': f'Please find attached invoice {pdf_path.stem}.',
+        }
+        html = f'<p>Please find attached invoice {pdf_path.stem}.</p>'
+
+    print('  Sending email...')
+    try:
+        send_invoice_email(config, invoice_data, html, str(pdf_path), recipient=email)
+    except Exception as e:
+        print(f'\n  ERROR sending email: {e}')
+        sys.exit(1)
+
+    print(f'\n  {pdf_path.name} sent to {email}\n')
+
+
+def smtp_test_flow(config: dict) -> None:
+    """Send a test email via SMTP to verify the connection and credentials."""
+    _, from_addr = parseaddr(config['smtp_from'])
+    to_addr = from_addr or config['smtp_user']
+
+    override = input(f'  Send test email to [{to_addr}]: ').strip()
+    if override:
+        if not validate_email(override):
+            print('  Invalid email address.')
+            sys.exit(1)
+        to_addr = override
+
+    print(f'\n  Connecting to {config["smtp_host"]}:{config["smtp_port"]}...')
+    try:
+        port = int(config['smtp_port'])
+        if port == 465:
+            conn = smtplib.SMTP_SSL(config['smtp_host'], port)
+        else:
+            conn = smtplib.SMTP(config['smtp_host'], port)
+            conn.starttls()
+
+        with conn as server:
+            server.login(config['smtp_user'], config['smtp_password'])
+            print('  Login successful.')
+
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = 'Invoice Tool — SMTP test'
+            msg['From'] = config['smtp_from']
+            msg['To'] = to_addr
+            msg.attach(MIMEText('This is a test email from your Invoice Tool. SMTP is working correctly.', 'plain', 'utf-8'))
+            msg.attach(MIMEText('<p>This is a test email from your <strong>Invoice Tool</strong>. SMTP is working correctly.</p>', 'html', 'utf-8'))
+
+            _, envelope_from = parseaddr(config['smtp_from'])
+            server.sendmail(envelope_from, [to_addr], msg.as_string())
+
+        print(f'\n  Test email sent to {to_addr} — SMTP is working.\n')
+
+    except smtplib.SMTPAuthenticationError:
+        print('\n  Authentication failed — check smtp_user and smtp_password.')
+        sys.exit(1)
+    except smtplib.SMTPConnectError as e:
+        print(f'\n  Could not connect to {config["smtp_host"]}:{config["smtp_port"]}: {e}')
+        sys.exit(1)
+    except Exception as e:
+        print(f'\n  SMTP test failed: {e}')
+        sys.exit(1)
 
 
 # ── PDF generation ─────────────────────────────────────────────────────────────
@@ -555,8 +694,11 @@ def main():
 
     # 2. Mode selection
     mode = prompt_mode()
-    if mode == 'resend':
-        resend_flow(config)
+    if mode == 'send_folder':
+        send_from_folder_flow(config)
+        return
+    if mode == 'smtp_test':
+        smtp_test_flow(config)
         return
 
     # 3. Reserve invoice number (written to log immediately)
