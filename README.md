@@ -35,6 +35,44 @@ The program will create a PDF invoice and email it to your client for you. It al
 
 ---
 
+## What you can do from the menu
+
+When you run the program you'll see a menu:
+
+| Option | What it does |
+|---|---|
+| **1) New invoice** | Create and send a new invoice |
+| **2) History** | View, resend, or mark invoices as paid |
+| **3) Send unsent invoice from folder** | Email a PDF you already have saved |
+| **4) Edit settings** | Update your business details or email settings |
+| **5) Test SMTP connection** | Check your email settings are working |
+
+---
+
+## Viewing your invoice history
+
+Choose **2 → History → View invoices**. You'll see a list of every invoice you've sent, with the amount and whether it's been paid.
+
+---
+
+## Marking an invoice as paid
+
+Choose **2 → History → Mark invoice as paid**. Pick the invoice from the list and confirm — it will be recorded as paid.
+
+---
+
+## Resending an old invoice
+
+Choose **2 → History → Resend invoice**. You'll see a list of invoices you've already sent — pick one and it will be resent.
+
+---
+
+## Changing your settings
+
+Choose **4) Edit settings** from the main menu. You'll be shown each setting one at a time — press Enter to keep the current value, or type a new one.
+
+---
+
 ## Where does everything get saved?
 
 | What | Where on your computer |
@@ -62,15 +100,11 @@ When you first run the program, it asks for email settings. These tell the progr
 
 ---
 
-## Resending an old invoice
-
-Run the program again and choose option **2**. You'll see a list of invoices you've already sent — pick one and it will be resent.
-
----
-
 ## Starting over (re-entering your settings)
 
-If you made a mistake in your settings and want to start fresh:
+The easiest way is to choose **4) Edit settings** from the main menu and update whichever fields you need.
+
+If you want to wipe everything and start completely fresh:
 
 1. Press the **Windows key + R** on your keyboard (a small box appears)
 2. Type `%APPDATA%\invoice-tool` and press Enter
