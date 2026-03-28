@@ -250,3 +250,34 @@ def test_select_invalid_returns_none():
     assert invoice._select_invoice_from_list(_sent_records(), '0') is None
     assert invoice._select_invoice_from_list(_sent_records(), '99') is None
     assert invoice._select_invoice_from_list(_sent_records(), '') is None
+
+
+# ── mark_invoice_paid ──────────────────────────────────────────────────────────
+
+def test_mark_invoice_paid_sets_status(tmp_path, monkeypatch):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    records = [{'number': 'INV-001', 'status': 'sent', 'total_gbp': 100.0}]
+    invoice.mark_invoice_paid(records, 'INV-001')
+    saved = json.loads((tmp_path / 'invoices.json').read_text())
+    assert saved[0]['status'] == 'paid'
+
+
+def test_mark_invoice_paid_adds_paid_at(tmp_path, monkeypatch):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    records = [{'number': 'INV-001', 'status': 'sent'}]
+    invoice.mark_invoice_paid(records, 'INV-001')
+    saved = json.loads((tmp_path / 'invoices.json').read_text())
+    assert 'paid_at' in saved[0]
+    assert saved[0]['paid_at'].endswith('Z')
+
+
+def test_mark_invoice_paid_unknown_number_does_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    records = [{'number': 'INV-001', 'status': 'sent'}]
+    invoice.mark_invoice_paid(records, 'INV-999')
+    saved = json.loads((tmp_path / 'invoices.json').read_text())
+    assert saved[0]['status'] == 'sent'

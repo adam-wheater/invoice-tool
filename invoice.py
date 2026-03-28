@@ -200,6 +200,16 @@ def finalise_invoice(records: list, number: str, data: dict) -> None:
     _save_invoices(records)
 
 
+def mark_invoice_paid(records: list, number: str) -> None:
+    """Mark a sent invoice record as paid."""
+    for record in records:
+        if record.get('number') == number:
+            record['status'] = 'paid'
+            record['paid_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            break
+    _save_invoices(records)
+
+
 def _select_invoice_from_list(sent_records: list, raw: str) -> Optional[dict]:
     """Return the matching record given a 1-based list index or invoice number string.
 
