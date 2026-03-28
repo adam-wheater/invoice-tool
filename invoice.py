@@ -518,7 +518,7 @@ def resend_flow(config: dict) -> None:
         print(f'\n  ERROR sending email:')
         print(_smtp_error_hint(config['smtp_host'], e))
         print(f'\n  PDF is at: {pdf_path}')
-        print('  Use option 3 to test your SMTP settings.')
+        print('  Use option 5 to test your SMTP settings.')
         return
 
     print(f'\n  {record["number"]} resent to {recipient}')
@@ -662,7 +662,7 @@ def send_from_folder_flow(config: dict) -> None:
     except Exception as e:
         print(f'\n  ERROR sending email:')
         print(_smtp_error_hint(config['smtp_host'], e))
-        print('  Use option 3 to test your SMTP settings.')
+        print('  Use option 5 to test your SMTP settings.')
         return
 
     print(f'\n  {pdf_path.name} sent to {email}')
@@ -966,8 +966,8 @@ def new_invoice_flow(config: dict) -> None:
         print(f'\n  ERROR sending email:')
         print(_smtp_error_hint(config['smtp_host'], e))
         print(f'\n  PDF saved at: {out_path}')
-        print('  Invoice log record left as pending — use option 2 to send it manually.')
-        print('  Use option 3 to test your SMTP settings.')
+        print('  Invoice log record left as pending — use option 3 to send it manually.')
+        print('  Use option 5 to test your SMTP settings.')
         return
 
     # 7. Finalise log
@@ -1004,8 +1004,22 @@ def main():
             break
         elif mode == 'new':
             new_invoice_flow(config)
+        elif mode == 'history':
+            while True:
+                print()
+                sub = prompt_history_mode()
+                if sub == 'back':
+                    break
+                elif sub == 'view':
+                    view_history_flow(config)
+                elif sub == 'resend':
+                    resend_flow(config)
+                elif sub == 'mark_paid':
+                    mark_paid_flow(config)
         elif mode == 'send_folder':
             send_from_folder_flow(config)
+        elif mode == 'edit_settings':
+            config = edit_settings_flow(config)
         elif mode == 'smtp_test':
             smtp_test_flow(config)
 
