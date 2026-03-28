@@ -378,3 +378,57 @@ def test_mark_paid_flow_no_unpaid(tmp_path, monkeypatch, capsys):
     invoice.mark_paid_flow({})
     out = capsys.readouterr().out
     assert 'No unpaid invoices found' in out
+
+
+# ── edit_settings_flow ─────────────────────────────────────────────────────────
+
+def _full_config():
+    return {
+        'business_name': 'Old Co', 'business_address': '1 St',
+        'business_email': 'old@example.com', 'business_phone': '01234',
+        'bank_payee': 'Old Payee', 'bank_sort_code': '00-00-00',
+        'bank_account': '00000000', 'smtp_host': 'smtp.example.com',
+        'smtp_port': 587, 'smtp_user': 'user@example.com',
+        'smtp_password': 'secret', 'smtp_from': 'user@example.com',
+    }
+
+
+def test_edit_settings_flow_updates_field(tmp_path, monkeypatch):
+    monkeypatch.setattr(invoice, 'CONFIG_FILE', tmp_path / 'config.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    monkeypatch.delenv('INVOICE_SMTP_USER', raising=False)
+    monkeypatch.delenv('INVOICE_SMTP_PASSWORD', raising=False)
+    config = _full_config()
+    # Press Enter for every field except business_name (first field)
+    field_count = sum(len(fields) for _, fields in invoice.SETUP_SECTIONS)
+    inputs = ['New Co'] + [''] * (field_count - 1)
+    with mock.patch('builtins.input', side_effect=inputs):
+        result = invoice.edit_settings_flow(config)
+    assert result['business_name'] == 'New Co'
+
+
+def test_edit_settings_flow_keeps_existing_on_enter(tmp_path, monkeypatch):
+    monkeypatch.setattr(invoice, 'CONFIG_FILE', tmp_path / 'config.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    monkeypatch.delenv('INVOICE_SMTP_USER', raising=False)
+    monkeypatch.delenv('INVOICE_SMTP_PASSWORD', raising=False)
+    config = _full_config()
+    field_count = sum(len(fields) for _, fields in invoice.SETUP_SECTIONS)
+    with mock.patch('builtins.input', side_effect=[''] * field_count):
+        result = invoice.edit_settings_flow(config)
+    assert result['business_name'] == 'Old Co'
+    assert result['smtp_password'] == 'secret'
+
+
+def test_edit_settings_flow_masks_password(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(invoice, 'CONFIG_FILE', tmp_path / 'config.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    monkeypatch.delenv('INVOICE_SMTP_USER', raising=False)
+    monkeypatch.delenv('INVOICE_SMTP_PASSWORD', raising=False)
+    config = _full_config()
+    field_count = sum(len(fields) for _, fields in invoice.SETUP_SECTIONS)
+    with mock.patch('builtins.input', side_effect=[''] * field_count):
+        invoice.edit_settings_flow(config)
+    out = capsys.readouterr().out
+    assert 'secret' not in out
+    assert '****' in out

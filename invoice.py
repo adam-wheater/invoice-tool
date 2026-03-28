@@ -732,6 +732,42 @@ def smtp_test_flow(config: dict) -> None:
     print(f'  Check {to_addr} for the test email.')
 
 
+def edit_settings_flow(config: dict) -> dict:
+    """Let the user edit any saved setting."""
+    smtp_user_from_env = bool(os.environ.get('INVOICE_SMTP_USER'))
+    smtp_pass_from_env = bool(os.environ.get('INVOICE_SMTP_PASSWORD'))
+
+    print('\n  Edit settings — press Enter to keep the current value.')
+
+    for section_title, fields in SETUP_SECTIONS:
+        print(f'\n  {section_title}')
+        print('  ' + '-' * len(section_title))
+        for field in fields:
+            label = FIELD_PROMPTS.get(field, field)
+            current = str(config.get(field, ''))
+            if field == 'smtp_password':
+                display = '****' if current else ''
+            else:
+                display = current
+
+            env_note = ''
+            if field == 'smtp_user' and smtp_user_from_env:
+                env_note = ' (overridden by environment variable — editing will save to config.json but the env var will still take precedence on next launch)'
+            elif field == 'smtp_password' and smtp_pass_from_env:
+                env_note = ' (overridden by environment variable — editing will save to config.json but the env var will still take precedence on next launch)'
+
+            hint = f'  [{display}]' if display else ''
+            prompt = f'  {label}{hint}{env_note}: '
+            print(prompt, end='', flush=True)
+            raw = input().strip()
+            if raw:
+                config[field] = raw
+
+    _save_config(config)
+    print('\n  Settings saved.')
+    return config
+
+
 # ── PDF generation ─────────────────────────────────────────────────────────────
 
 def render_html(template_data: dict) -> str:
