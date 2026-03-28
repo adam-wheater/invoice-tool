@@ -236,7 +236,6 @@ def build_invoice_data_from_record(record: dict, config: dict) -> dict:
 
     Returns:
         A complete invoice_data dict suitable for render_html() and send_invoice_email().
-        client_address is always '' (not stored in log).
     """
     line_items = record['line_items']
     vat_applied = record['vat_applied']
@@ -244,7 +243,7 @@ def build_invoice_data_from_record(record: dict, config: dict) -> dict:
         'number': record['number'],
         'client_name': record['client_name'],
         'client_email': record['client_email'],
-        'client_address': '',
+        'client_address': record.get('client_address', ''),
         'date_issued': date.fromisoformat(record['date_issued']),
         'date_due': date.fromisoformat(record['date_due']),
         'line_items': line_items,
@@ -850,6 +849,7 @@ def new_invoice_flow(config: dict) -> None:
     log_data = {
         'client_name': client['client_name'],
         'client_email': client['client_email'],
+        'client_address': client['client_address'],
         'date_issued': issued.isoformat(),
         'date_due': options['due_date'].isoformat(),
         'total_gbp': totals['total'],

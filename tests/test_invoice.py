@@ -189,6 +189,13 @@ def test_build_invoice_data_from_record_client_address_is_empty_string():
     assert data['client_address'] == ''
 
 
+def test_build_invoice_data_from_record_client_address_from_record():
+    record = _sample_record()
+    record['client_address'] = '10 Downing Street\nLondon'
+    data = invoice.build_invoice_data_from_record(record, _sample_config())
+    assert data['client_address'] == '10 Downing Street\nLondon'
+
+
 def test_build_invoice_data_from_record_notes_from_record():
     data = invoice.build_invoice_data_from_record(_sample_record(), _sample_config())
     assert data['notes'] == 'Pay promptly'
