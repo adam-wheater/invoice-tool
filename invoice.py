@@ -499,6 +499,24 @@ def resend_flow(config: dict) -> None:
     print(f'\n  {record["number"]} resent to {recipient}')
 
 
+def view_history_flow(config: dict) -> None:
+    """Display all sent and paid invoices."""
+    records = _load_invoices()
+    visible = [r for r in records if r.get('status') in ('sent', 'paid')]
+
+    if not visible:
+        print('  No invoices found.')
+        return
+
+    print('\n  Invoices:')
+    print(f'   {"#":<4} {"Number":<10} {"Client":<22} {"Total":>10}  {"Date":<12}  {"Status"}')
+    print('  ' + '─' * 68)
+    for i, r in enumerate(visible, 1):
+        total_str = f'\u00a3{r["total_gbp"]:,.2f}'
+        status = r.get('status', 'sent')
+        print(f'   {i:<4} {r["number"]:<10} {r["client_name"][:21]:<22} {total_str:>10}  {r["date_issued"]:<12}  {status}')
+
+
 def send_from_folder_flow(config: dict) -> None:
     """Send a PDF invoice from the invoices folder that was never emailed."""
     # Find PDFs in INVOICES_DIR

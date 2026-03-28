@@ -281,3 +281,60 @@ def test_mark_invoice_paid_unknown_number_does_nothing(tmp_path, monkeypatch):
     invoice.mark_invoice_paid(records, 'INV-999')
     saved = json.loads((tmp_path / 'invoices.json').read_text())
     assert saved[0]['status'] == 'sent'
+
+
+# ── view_history_flow ──────────────────────────────────────────────────────────
+
+def _make_records_for_history():
+    return [
+        {'number': 'INV-001', 'status': 'sent', 'client_name': 'Acme Ltd',
+         'total_gbp': 300.0, 'date_issued': '2026-03-18'},
+        {'number': 'INV-002', 'status': 'paid', 'client_name': 'Bob Co',
+         'total_gbp': 500.0, 'date_issued': '2026-03-20'},
+        {'number': 'INV-003', 'status': 'pending', 'client_name': 'Charlie',
+         'total_gbp': 100.0, 'date_issued': '2026-03-21'},
+    ]
+
+
+def test_view_history_flow_shows_sent_and_paid(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    (tmp_path / 'invoices.json').write_text(
+        json.dumps(_make_records_for_history())
+    )
+    invoice.view_history_flow({})
+    out = capsys.readouterr().out
+    assert 'INV-001' in out
+    assert 'INV-002' in out
+
+
+def test_view_history_flow_excludes_pending(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    (tmp_path / 'invoices.json').write_text(
+        json.dumps(_make_records_for_history())
+    )
+    invoice.view_history_flow({})
+    out = capsys.readouterr().out
+    assert 'INV-003' not in out
+
+
+def test_view_history_flow_empty_no_records(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    (tmp_path / 'invoices.json').write_text('[]')
+    invoice.view_history_flow({})
+    out = capsys.readouterr().out
+    assert 'No invoices found' in out
+
+
+def test_view_history_flow_empty_all_pending(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    (tmp_path / 'invoices.json').write_text(json.dumps([
+        {'number': 'INV-001', 'status': 'pending', 'client_name': 'Acme',
+         'total_gbp': 100.0, 'date_issued': '2026-03-18'},
+    ]))
+    invoice.view_history_flow({})
+    out = capsys.readouterr().out
+    assert 'No invoices found' in out
