@@ -370,6 +370,7 @@ def test_mark_paid_flow_cancelled(tmp_path, monkeypatch):
 
 def test_mark_paid_flow_no_unpaid(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
     (tmp_path / 'invoices.json').write_text(json.dumps([
         {'number': 'INV-001', 'status': 'paid', 'client_name': 'Acme',
          'total_gbp': 300.0, 'date_issued': '2026-03-18'},
