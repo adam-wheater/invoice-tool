@@ -338,3 +338,42 @@ def test_view_history_flow_empty_all_pending(tmp_path, monkeypatch, capsys):
     invoice.view_history_flow({})
     out = capsys.readouterr().out
     assert 'No invoices found' in out
+
+
+# ── mark_paid_flow ─────────────────────────────────────────────────────────────
+
+def test_mark_paid_flow_marks_selected_invoice(tmp_path, monkeypatch):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    (tmp_path / 'invoices.json').write_text(json.dumps([
+        {'number': 'INV-001', 'status': 'sent', 'client_name': 'Acme',
+         'total_gbp': 300.0, 'date_issued': '2026-03-18'},
+    ]))
+    with mock.patch('builtins.input', side_effect=['1', 'y']):
+        invoice.mark_paid_flow({})
+    saved = json.loads((tmp_path / 'invoices.json').read_text())
+    assert saved[0]['status'] == 'paid'
+
+
+def test_mark_paid_flow_cancelled(tmp_path, monkeypatch):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    monkeypatch.setattr(invoice, 'APP_DATA_DIR', tmp_path)
+    (tmp_path / 'invoices.json').write_text(json.dumps([
+        {'number': 'INV-001', 'status': 'sent', 'client_name': 'Acme',
+         'total_gbp': 300.0, 'date_issued': '2026-03-18'},
+    ]))
+    with mock.patch('builtins.input', side_effect=['1', 'n']):
+        invoice.mark_paid_flow({})
+    saved = json.loads((tmp_path / 'invoices.json').read_text())
+    assert saved[0]['status'] == 'sent'
+
+
+def test_mark_paid_flow_no_unpaid(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(invoice, 'INVOICES_FILE', tmp_path / 'invoices.json')
+    (tmp_path / 'invoices.json').write_text(json.dumps([
+        {'number': 'INV-001', 'status': 'paid', 'client_name': 'Acme',
+         'total_gbp': 300.0, 'date_issued': '2026-03-18'},
+    ]))
+    invoice.mark_paid_flow({})
+    out = capsys.readouterr().out
+    assert 'No unpaid invoices found' in out

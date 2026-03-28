@@ -517,6 +517,42 @@ def view_history_flow(config: dict) -> None:
         print(f'   {i:<4} {r["number"]:<10} {r["client_name"][:21]:<22} {total_str:>10}  {r["date_issued"]:<12}  {status}')
 
 
+def mark_paid_flow(config: dict) -> None:
+    """Mark a sent invoice as paid."""
+    all_records = _load_invoices()
+    unpaid = [r for r in all_records if r.get('status') == 'sent']
+
+    if not unpaid:
+        print('  No unpaid invoices found.')
+        return
+
+    print('\n  Unpaid invoices:')
+    print(f'   {"#":<4} {"Number":<10} {"Client":<22} {"Total":>10}  {"Date":<12}')
+    print('  ' + '─' * 57)
+    for i, r in enumerate(unpaid, 1):
+        total_str = f'\u00a3{r["total_gbp"]:,.2f}'
+        print(f'   {i:<4} {r["number"]:<10} {r["client_name"][:21]:<22} {total_str:>10}  {r["date_issued"]:<12}')
+
+    record = None
+    while record is None:
+        sel = input('\n  Enter # or invoice number: ').strip()
+        record = _select_invoice_from_list(unpaid, sel)
+        if record is None:
+            print('  Not found. Enter a list number or invoice number.')
+
+    total_str = f'\u00a3{record["total_gbp"]:,.2f}'
+    while True:
+        confirm = input(f'\n  Mark {record["number"]} ({total_str}) as paid? [y/N]: ').strip().lower()
+        if confirm == 'y':
+            break
+        if confirm in ('n', ''):
+            print('  Cancelled.')
+            return
+
+    mark_invoice_paid(all_records, record['number'])
+    print(f'\n  {record["number"]} marked as paid.')
+
+
 def send_from_folder_flow(config: dict) -> None:
     """Send a PDF invoice from the invoices folder that was never emailed."""
     # Find PDFs in INVOICES_DIR
