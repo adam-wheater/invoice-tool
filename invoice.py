@@ -412,21 +412,46 @@ def prompt_confirmation() -> bool:
 
 
 def prompt_mode() -> str:
-    """Prompt the user to choose a mode. Returns 'new', 'send_folder', 'smtp_test', or 'exit'."""
+    """Prompt the user to choose a mode. Returns 'new', 'history', 'send_folder', 'edit_settings', 'smtp_test', or 'exit'."""
     print('  1) New invoice')
-    print('  2) Send unsent invoice from folder')
-    print('  3) Test SMTP connection')
+    print('  2) History')
+    print('  3) Send unsent invoice from folder')
+    print('  4) Edit settings')
+    print('  5) Test SMTP connection')
     print('  0) Exit\n')
     while True:
         raw = input('  Choice [1]: ').strip()
         if raw in ('', '1'):
             return 'new'
         if raw == '2':
-            return 'send_folder'
+            return 'history'
         if raw == '3':
+            return 'send_folder'
+        if raw == '4':
+            return 'edit_settings'
+        if raw == '5':
             return 'smtp_test'
         if raw == '0':
             return 'exit'
+        print('  Please enter 0, 1, 2, 3, 4, or 5.')
+
+
+def prompt_history_mode() -> str:
+    """Prompt the user to choose a history action. Returns 'view', 'resend', 'mark_paid', or 'back'."""
+    print('  1) View invoices')
+    print('  2) Resend invoice')
+    print('  3) Mark invoice as paid')
+    print('  0) Back\n')
+    while True:
+        raw = input('  Choice: ').strip()
+        if raw == '1':
+            return 'view'
+        if raw == '2':
+            return 'resend'
+        if raw == '3':
+            return 'mark_paid'
+        if raw == '0':
+            return 'back'
         print('  Please enter 0, 1, 2, or 3.')
 
 

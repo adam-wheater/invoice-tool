@@ -432,3 +432,41 @@ def test_edit_settings_flow_masks_password(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert 'secret' not in out
     assert '****' in out
+
+
+# ── prompt_history_mode ────────────────────────────────────────────────────────
+
+def test_prompt_history_mode_view():
+    with mock.patch('builtins.input', return_value='1'):
+        assert invoice.prompt_history_mode() == 'view'
+
+def test_prompt_history_mode_resend():
+    with mock.patch('builtins.input', return_value='2'):
+        assert invoice.prompt_history_mode() == 'resend'
+
+def test_prompt_history_mode_mark_paid():
+    with mock.patch('builtins.input', return_value='3'):
+        assert invoice.prompt_history_mode() == 'mark_paid'
+
+def test_prompt_history_mode_back():
+    with mock.patch('builtins.input', return_value='0'):
+        assert invoice.prompt_history_mode() == 'back'
+
+
+# ── prompt_mode (updated) ──────────────────────────────────────────────────────
+
+def test_prompt_mode_new_default():
+    with mock.patch('builtins.input', return_value=''):
+        assert invoice.prompt_mode() == 'new'
+
+def test_prompt_mode_history():
+    with mock.patch('builtins.input', return_value='2'):
+        assert invoice.prompt_mode() == 'history'
+
+def test_prompt_mode_edit_settings():
+    with mock.patch('builtins.input', return_value='4'):
+        assert invoice.prompt_mode() == 'edit_settings'
+
+def test_prompt_mode_smtp_test():
+    with mock.patch('builtins.input', return_value='5'):
+        assert invoice.prompt_mode() == 'smtp_test'
